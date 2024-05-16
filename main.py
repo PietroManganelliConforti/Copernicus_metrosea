@@ -8,6 +8,7 @@ torch.backends.cudnn.benchmark = True
 import time
 #torch.set_float32_matmul_precision("high")
 
+
 if __name__ == "__main__":
 
     device = "cpu"
@@ -30,7 +31,12 @@ if __name__ == "__main__":
 
     print("dataset: ",  dataset_2D[0][0].shape, dataset_2D[0][1].shape)
 
+    ##mean and variance of the labels:
 
+    mean=np.asarray([16.3281, 16.3271, 16.3276, 16.3307, 16.3349, 16.3392, 16.3471])
+    std=np.asarray([5.9852, 5.9800, 5.9789, 5.9768, 5.9834, 5.9868, 5.9880])
+    mean_pt =torch.from_numpy(mean).to(device)
+    std_pt =torch.from_numpy(std).to(device)
     #dataloader
 
     split = 0.8
@@ -61,7 +67,7 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=0.001)
 
-    num_epochs = 100
+    num_epochs = 5
 
     import time
 
@@ -74,28 +80,37 @@ if __name__ == "__main__":
 
         fused_resnet_model.train()
 
-        loss = 0
-
+        acc_loss = 0
+        label_list = []
         for i, (data, labels) in enumerate(train_dataloader):
-
             data = data.to(device)
             labels = labels.to(device)
-
+            labels=((labels-mean_pt)/std_pt).float()
             optimizer.zero_grad()
 
             outputs = fused_resnet_model(data)
 
             loss = criterion(outputs, labels)
-
+            chunks = list(torch.chunk(labels, labels.size(0), dim=0))
+            label_list.extend(chunks)
             loss.backward()
 
             optimizer.step()
+            acc_loss += (loss.item()*std_pt)+mean_pt ##showing in denormalized, original values
 
-            loss += loss.item()
+        # Concatenate all items into a single tensor along the first dimension
+#        concatenated_items = torch.cat(label_list, dim=0)
+
+        # Calculate mean and standard deviation of the concatenated tensor
+#        mean_items = torch.mean(concatenated_items, dim=0)
+#        std_items = torch.std(concatenated_items, dim=0)
+
+#        print("Mean of items:", mean_items)
+#        print("Standard deviation of items:", std_items)
 
         epoch_elapsed_time = time.time() - start_time
-        print("Epoch: ",epoch, "elapsed time: ",epoch_elapsed_time, "Loss: ", loss.item()/len(train_dataloader))
-    
+        
+        print("Epoch: ",epoch, "Loss in original space: ", torch.mean(acc_loss)/len(train_dataloader))
 
     print("Total time: ", time.time()-start)
 
@@ -112,11 +127,12 @@ if __name__ == "__main__":
 
             data = data.to(device)
             labels = labels.to(device)
+            labels=((labels-mean_pt)/std_pt).float() #normalizing labels. If I want to get actual error, need to disable this and enable the other line
 
             outputs = fused_resnet_model(data)
 
             loss = criterion(outputs, labels)
-
             acc_loss += loss.item()
+            acc_loss += (loss.item()*std_pt)+mean_pt ##showing in denormalized, original values
     
-    print("Total test loss: ", acc_loss/len(test_dataloader))
+    print("Total test loss in original space: ", torch.mean(acc_loss)/len(test_dataloader))
