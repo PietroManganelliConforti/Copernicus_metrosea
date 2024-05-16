@@ -44,7 +44,7 @@ if __name__ == "__main__":
     train_size = int(split * len(dataset_2D))
     test_size = len(dataset_2D) - train_size
 
-    train_dataset, test_dataset = torch.utils.data.random_split(dataset_2D, [train_size, test_size])
+    train_dataset, test_dataset = torch.utils.data.random_split(dataset_2D, [train_size, test_size],generator=torch.Generator().manual_seed(42))
 
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
 
