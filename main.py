@@ -4,8 +4,9 @@ import torch
 import numpy as np
 import pandas as pd
 from dataset2D import Dataset_2D_copernicus, merge_2D_dataset, fused_resnet
-
-
+torch.backends.cudnn.benchmark = True
+import time
+#torch.set_float32_matmul_precision("high")
 
 if __name__ == "__main__":
 
@@ -55,7 +56,7 @@ if __name__ == "__main__":
     fused_resnet_model = fused_resnet()
 
     fused_resnet_model.to(device)
-
+    #fused_resnet_model = torch.compile(fused_resnet_model)
     criterion = torch.nn.MSELoss()
 
     optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=0.001)
@@ -69,7 +70,8 @@ if __name__ == "__main__":
     print("Training the model", start)
 
     for epoch in range(num_epochs):
-            
+        start_time = time.time()
+
         fused_resnet_model.train()
 
         loss = 0
@@ -91,8 +93,8 @@ if __name__ == "__main__":
 
             loss += loss.item()
 
-        
-        print("Epoch: ", epoch, "Loss: ", loss/len(train_dataloader))
+        epoch_elapsed_time = time.time() - start_time
+        print("Epoch: ",epoch, "elapsed time: ",epoch_elapsed_time, "Loss: ", loss.item()/len(train_dataloader))
     
 
     print("Total time: ", time.time()-start)
