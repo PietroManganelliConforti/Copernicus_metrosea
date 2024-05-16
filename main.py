@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=0.001)
 
-    num_epochs = 5
+    num_epochs = 100
 
     import time
 
