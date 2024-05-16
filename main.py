@@ -69,8 +69,6 @@ if __name__ == "__main__":
 
     num_epochs = 20
 
-    import time
-
     start = time.time()
 
     print("Training the model", start)
@@ -85,7 +83,7 @@ if __name__ == "__main__":
         for i, (data, labels) in enumerate(train_dataloader):
             data = data.to(device)
             labels = labels.to(device)
-#            labels=((labels-mean_pt)/std_pt).float()
+            labels=((labels-mean_pt)/std_pt).float()
             optimizer.zero_grad()
 
             outputs = fused_resnet_model(data)
@@ -96,7 +94,7 @@ if __name__ == "__main__":
             loss.backward()
 
             optimizer.step()
-            acc_loss +=loss # (loss.item()*std_pt)+mean_pt ##showing in denormalized, original values
+            acc_loss +=loss #(loss*std_pt)+mean_pt ##showing in denormalized, original values
 
         # Concatenate all items into a single tensor along the first dimension
 #        concatenated_items = torch.cat(label_list, dim=0)
@@ -127,11 +125,11 @@ if __name__ == "__main__":
 
             data = data.to(device)
             labels = labels.to(device)
-            #labels=((labels-mean_pt)/std_pt).float() #normalizing labels. If I want to get actual error, need to disable this and enable the other line
+            labels=labels # ((labels-mean_pt)/std_pt).float() #normalizing labels. If I want to get actual error, need to disable this and enable the other line
 
-            outputs = fused_resnet_model(data)
+            outputs = fused_resnet_model(data)*std_pt+mean_pt
 
             loss = criterion(outputs, labels)
-            acc_loss +=loss # (loss.item()*std_pt)+mean_pt ##showing in denormalized, original values
+            acc_loss += loss 
     
     print("Total test loss in original space: ", torch.mean(acc_loss)/len(test_dataloader))
