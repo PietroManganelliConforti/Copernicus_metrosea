@@ -1,6 +1,8 @@
 # Copernicus_metrosea
 
-MetroSea2024 research repository on the implementation of copernicus values forecast from volumetric temperature trends transformed through CWT and analyzed in parallel from 16 neural network simultaneously. Temporal trends evaluations from each network are combined and analyzed through an ensemble learning approach.
+## Overview
+
+MetroSea 2024 research project implementation of copernicus values forecast from volumetric temperature trends transformed through CWT and analyzed simultaneously in parallel from 16 neural network. Temporal trends evaluations from each network are combined and analyzed through an ensemble learning approach.
 
 ## Details
 
