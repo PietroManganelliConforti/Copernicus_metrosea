@@ -220,16 +220,6 @@ class fused_resnet(torch.nn.Module):
         return outputs
 
 
-    
-
-
-
-
-
-
-
-
-
 
 
 if __name__ == "__main__":
@@ -246,7 +236,9 @@ if __name__ == "__main__":
 
         device_name = torch.cuda.get_device_name(current_device)
 
-        #test_2D_dataset_copernicus(device)
+        test_2D_dataset_copernicus(device)
+
+        exit(0)
 
         #print merged dataset
 
@@ -287,7 +279,7 @@ if __name__ == "__main__":
 
         optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=0.001)
 
-        num_epochs = 100
+        num_epochs = 1000
 
         import time
 
