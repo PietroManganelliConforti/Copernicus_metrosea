@@ -6,6 +6,7 @@ import pandas as pd
 from dataset2D import Dataset_2D_copernicus, merge_2D_dataset, fused_resnet
 torch.backends.cudnn.benchmark = True
 import time
+import matplotlib.pyplot as plt
 #torch.set_float32_matmul_precision("high")
 from torch.utils.data import DataLoader, Subset
 from torchvision.transforms import GaussianBlur, RandomHorizontalFlip, RandomAffine, Compose
@@ -30,10 +31,10 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device):
 
             outputs = model(data) *std_pt+mean_pt
 
-            loss = criterion(outputs, labels)
+            loss = criterion_print(outputs, labels)
             acc_loss += loss 
     
-    print("Total test loss in original space: ", torch.mean(acc_loss)/len(test_dataloader))
+    print("Test L1 Loss in original space: ", torch.mean(acc_loss).cpu().numpy()/len(test_dataloader))
 
 def get_mean_and_std(dataset_2D, monodim = True):
     
@@ -107,7 +108,8 @@ if __name__ == "__main__":
     std=np.asarray([5.9852, 5.9800, 5.9789, 5.9768, 5.9834, 5.9868, 5.9880])
     mean_pt =torch.from_numpy(mean).to(device)
     std_pt =torch.from_numpy(std).to(device)
-
+#    mean_pt.fill_(0)
+#    std_pt.fill_(1)
 
     #split the dataset
 
@@ -130,6 +132,8 @@ if __name__ == "__main__":
     #get mean and std of the dataset
 
     mean, std = get_mean_and_std(train_dataset)
+ #   mean.fill_(0) 
+#    std.fill_(1)
 
     # approximate mean and std 
 
@@ -149,8 +153,9 @@ if __name__ == "__main__":
     fused_resnet_model.to(device)
     #fused_resnet_model = torch.compile(fused_resnet_model)
     criterion = torch.nn.MSELoss()
+    criterion_print= torch.nn.L1Loss()
 
-    optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=1e-6)
+    optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=1e-4)
 
     num_epochs = 500
 
@@ -178,16 +183,16 @@ if __name__ == "__main__":
             labels = labels.to(device)
             labels=((labels-mean_pt)/std_pt).float()
             optimizer.zero_grad()
-
             outputs = fused_resnet_model(data)
 
             loss = criterion(outputs, labels)
+            loss_unorm = criterion_print(outputs*std_pt+mean_pt, labels*std_pt+mean_pt)
             #chunks = list(torch.chunk(labels, labels.size(0), dim=0))
             #label_list.extend(chunks)
             loss.backward()
 
             optimizer.step()
-            acc_loss +=loss #(loss*std_pt)+mean_pt ##showing in denormalized, original values
+            acc_loss +=loss_unorm #(loss*std_pt)+mean_pt ##showing in denormalized, original values
 
         # Concatenate all items into a single tensor along the first dimension
 #        concatenated_items = torch.cat(label_list, dim=0)
@@ -200,8 +205,7 @@ if __name__ == "__main__":
 #        print("Standard deviation of items:", std_items)
 
         epoch_elapsed_time = time.time() - start_time
-        
-        print("Epoch: ",epoch, "Loss in original space: ", (torch.mean(acc_loss)/len(train_dataloader)))
+        print("Epoch: ",epoch, "L1 Loss in original space: ", (torch.mean(acc_loss).detach().cpu().numpy()/len(train_dataloader)))
 
 
         if epoch % 10 == 0:
@@ -213,3 +217,37 @@ if __name__ == "__main__":
 
 
     test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device)
+
+
+    with torch.no_grad():
+        ##PLOTTING COE
+        sample_idx = 0
+        input_data, label = test_dataset[sample_idx]
+        input_data, label = input_data.to(device), label.to(device)
+
+        input_data = input_data.unsqueeze(0)  # Add batch dimension if needed
+        input_data = ((input_data -mean)/std).float()
+        
+        fused_resnet_model.eval()
+
+        prediction = fused_resnet_model(input_data)
+
+        prediction = (prediction*std_pt + mean_pt).squeeze(0) #plotting in the original space
+
+        label = label.cpu().numpy()
+        prediction = prediction.cpu().numpy()
+        plt.figure(figsize=(10, 5))
+
+        plt.plot(label, 'o-', label='Label', color='blue')
+
+        plt.plot(prediction, 'x-', label='Prediction', color='red')
+
+        plt.title('Label vs Prediction')
+        plt.xlabel('Index')
+        plt.ylabel('Value')
+
+        # Add a legend
+        plt.legend()
+
+        # Show the plot
+        plt.show()
