@@ -75,7 +75,8 @@ if __name__ == "__main__":
     start = time.time()
 
     print("Training the model...")
-    
+
+    print("Start time: ", time.strftime("%H:%M:%S", time.gmtime(start)))
 
     for epoch in range(num_epochs):
         start_time = time.time()
