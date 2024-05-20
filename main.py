@@ -7,6 +7,7 @@ from dataset2D import Dataset_2D_copernicus, merge_2D_dataset, fused_resnet
 torch.backends.cudnn.benchmark = True
 import time
 #torch.set_float32_matmul_precision("high")
+from torch.utils.data import DataLoader, Subset
 
 
 if __name__ == "__main__":
@@ -37,22 +38,24 @@ if __name__ == "__main__":
     std=np.asarray([5.9852, 5.9800, 5.9789, 5.9768, 5.9834, 5.9868, 5.9880])
     mean_pt =torch.from_numpy(mean).to(device)
     std_pt =torch.from_numpy(std).to(device)
-    #dataloader
+
+
+    #split the dataset
 
     split = 0.8
 
-    train_size = int(split * len(dataset_2D))
-    test_size = len(dataset_2D) - train_size
+    split_index = int(split * len(dataset_2D))
 
-    train_dataset, test_dataset = torch.utils.data.random_split(dataset_2D, [train_size, test_size],generator=torch.Generator().manual_seed(42))
+    overlapping_indexes = int((30+7)/7)  # where 30 is the window size and 7 is the output size and the stride size. With math.ceil the days overlap is removed
 
-    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
+    train_indices = list(range(split_index - overlapping_indexes))
+    test_indices = list(range(split_index, len(dataset_2D)))
 
-    test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=64, shuffle=True)
+    train_dataset = Subset(dataset_2D, train_indices)
+    test_dataset = Subset(dataset_2D, test_indices)
 
-
-
-    #dataloader2D = torch.utils.data.DataLoader(dataset_2D, batch_size=64, shuffle=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=64, shuffle=True)
 
 
 
@@ -67,11 +70,12 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=0.001)
 
-    num_epochs = 20
+    num_epochs = 100
 
     start = time.time()
 
-    print("Training the model", start)
+    print("Training the model...")
+    
 
     for epoch in range(num_epochs):
         start_time = time.time()
