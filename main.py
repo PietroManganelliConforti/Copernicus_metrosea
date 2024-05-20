@@ -8,6 +8,41 @@ torch.backends.cudnn.benchmark = True
 import time
 #torch.set_float32_matmul_precision("high")
 from torch.utils.data import DataLoader, Subset
+from torchvision.transforms import GaussianBlur, RandomHorizontalFlip, RandomAffine, Compose
+
+def get_mean_and_std(dataset_2D, monodim = True):
+    
+    mean =0
+    std = 0
+
+    if not monodim:
+        mean = torch.zeros((16, 3))
+        std = torch.zeros((16, 3))
+
+
+    for images,_ in dataset_2D:
+
+        if monodim:
+            mean += images.mean()  
+            std += images.std()   
+        else: 
+            mean += images.mean(dim=[2, 3])  
+            std += images.std(dim=[2, 3])   
+
+
+
+    # Divide by the total number of images to get the mean and std for the entire dataset
+    mean /= len(dataset_2D)
+    std /= len(dataset_2D)
+
+    if not monodim:
+        mean = mean.unsqueeze(-1).unsqueeze(-1)
+        std = std.unsqueeze(-1).unsqueeze(-1)
+        print("mean and std shape and mean values: ", mean.shape, mean.mean(), std.shape, std.mean())
+    else:
+        print("mean and std: ", mean, std)
+    
+    return mean, std
 
 
 if __name__ == "__main__":
@@ -26,6 +61,15 @@ if __name__ == "__main__":
 
 
     #load the dataset
+
+    augmentations = Compose([
+        GaussianBlur((3, 3), (0.1, 2.0)),
+        RandomHorizontalFlip(),
+        RandomAffine(0, translate=(0.5, 0.5)),
+        RandomAffine(0, shear=3),
+        RandomAffine(0, scale=(0.9, 1.1))]
+    )
+
 
     dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
                                     label_lat = "45.60", label_lon = "13.54")
@@ -55,12 +99,25 @@ if __name__ == "__main__":
     test_dataset = Subset(dataset_2D, test_indices)
 
     train_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=64, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
 
+    #get mean and std of the dataset
+
+    mean, std = get_mean_and_std(train_dataset)
+
+    # approximate mean and std 
+
+    # mean = torch.tensor([2.9796, 2.9842, 2.9871])
+    # std = torch.tensor([7.2536, 7.2696, 7.2694])
+
+    mean = mean.to(device)
+    std = std.to(device)
 
 
     #train the model
+
+    torch.hub._validate_not_a_forked_repo=lambda a,b,c: True  # this is to avoid the error of torch.hub.load
 
     fused_resnet_model = fused_resnet()
 
@@ -70,7 +127,7 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=0.001)
 
-    num_epochs = 100
+    num_epochs = 200
 
     start = time.time()
 
@@ -79,14 +136,20 @@ if __name__ == "__main__":
     print("Start time: ", time.strftime("%H:%M:%S", time.gmtime(start)))
 
     for epoch in range(num_epochs):
+
         start_time = time.time()
 
         fused_resnet_model.train()
 
         acc_loss = 0
         label_list = []
+
         for i, (data, labels) in enumerate(train_dataloader):
+
             data = data.to(device)
+
+            data = (data - mean)/std
+
             labels = labels.to(device)
             labels=((labels-mean_pt)/std_pt).float()
             optimizer.zero_grad()
@@ -113,7 +176,7 @@ if __name__ == "__main__":
 
         epoch_elapsed_time = time.time() - start_time
         
-        print("Epoch: ",epoch, "Loss in original space: ", torch.mean(acc_loss)/len(train_dataloader))
+        print("Epoch: ",epoch, "Loss in original space: ", (torch.mean(acc_loss)/len(train_dataloader)))
 
     print("Total time: ", time.time()-start)
 
@@ -129,6 +192,9 @@ if __name__ == "__main__":
         for i, (data, labels) in enumerate(test_dataloader):
 
             data = data.to(device)
+            data = (data - mean)/std
+
+
             labels = labels.to(device)
             labels=labels # ((labels-mean_pt)/std_pt).float() #normalizing labels. If I want to get actual error, need to disable this and enable the other line
 

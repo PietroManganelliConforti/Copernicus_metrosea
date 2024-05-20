@@ -44,7 +44,7 @@ class merge_2D_dataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.dataset_2D_list[0]) 
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx, transforms = None):
 
         list_of_inputs = []
 
@@ -60,6 +60,9 @@ class merge_2D_dataset(torch.utils.data.Dataset):
                 labels = elem[1]
 
         output_tensor = torch.stack(list_of_inputs)
+
+        if transforms:
+            output_tensor = transforms(output_tensor)
 
         return output_tensor, labels
 
