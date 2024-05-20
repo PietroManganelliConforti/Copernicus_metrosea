@@ -10,6 +10,31 @@ import time
 from torch.utils.data import DataLoader, Subset
 from torchvision.transforms import GaussianBlur, RandomHorizontalFlip, RandomAffine, Compose
 
+def test(model, test_dataloader, mean, std, mean_pt, std_pt, device):
+    #test the model
+
+    model.eval()
+
+    acc_loss = 0
+
+    with torch.no_grad():
+
+        for i, (data, labels) in enumerate(test_dataloader):
+
+            data = data.to(device)
+            data = (data - mean)/std
+
+
+            labels = labels.to(device)
+            labels=labels # ((labels-mean_pt)/std_pt).float() #normalizing labels. If I want to get actual error, need to disable this and enable the other line
+
+            outputs = model(data) *std_pt+mean_pt
+
+            loss = criterion(outputs, labels)
+            acc_loss += loss 
+    
+    print("Total test loss in original space: ", torch.mean(acc_loss)/len(test_dataloader))
+
 def get_mean_and_std(dataset_2D, monodim = True):
     
     mean =0
@@ -125,9 +150,9 @@ if __name__ == "__main__":
     #fused_resnet_model = torch.compile(fused_resnet_model)
     criterion = torch.nn.MSELoss()
 
-    optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=1e-6)
 
-    num_epochs = 200
+    num_epochs = 500
 
     start = time.time()
 
@@ -157,8 +182,8 @@ if __name__ == "__main__":
             outputs = fused_resnet_model(data)
 
             loss = criterion(outputs, labels)
-            chunks = list(torch.chunk(labels, labels.size(0), dim=0))
-            label_list.extend(chunks)
+            #chunks = list(torch.chunk(labels, labels.size(0), dim=0))
+            #label_list.extend(chunks)
             loss.backward()
 
             optimizer.step()
@@ -178,29 +203,13 @@ if __name__ == "__main__":
         
         print("Epoch: ",epoch, "Loss in original space: ", (torch.mean(acc_loss)/len(train_dataloader)))
 
+
+        if epoch % 10 == 0:
+
+            test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device)
+
+
     print("Total time: ", time.time()-start)
 
 
-    #test the model
-
-    fused_resnet_model.eval()
-
-    acc_loss = 0
-
-    with torch.no_grad():
-
-        for i, (data, labels) in enumerate(test_dataloader):
-
-            data = data.to(device)
-            data = (data - mean)/std
-
-
-            labels = labels.to(device)
-            labels=labels # ((labels-mean_pt)/std_pt).float() #normalizing labels. If I want to get actual error, need to disable this and enable the other line
-
-            outputs = fused_resnet_model(data)*std_pt+mean_pt
-
-            loss = criterion(outputs, labels)
-            acc_loss += loss 
-    
-    print("Total test loss in original space: ", torch.mean(acc_loss)/len(test_dataloader))
+    test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device)
