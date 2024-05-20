@@ -179,8 +179,6 @@ class fused_resnet(torch.nn.Module):
 
         #create 16 resnet18 and fuse the last layer together
 
-        self.resnet18_dummy = torch.hub.load('pytorch/vision:v0.6.0', 'resnet18', pretrained=True)
-
         self.resnet18_list = [torch.hub.load('pytorch/vision:v0.6.0', 'resnet18', pretrained=True) for i in range(16)]
 
         for i in range(16):
