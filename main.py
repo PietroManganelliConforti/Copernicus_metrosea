@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 #torch.set_float32_matmul_precision("high")
 from torch.utils.data import DataLoader, Subset
 from torchvision.transforms import GaussianBlur, RandomHorizontalFlip, RandomAffine, Compose
+import torch.nn.functional as F
 
 def test(model, test_dataloader, mean, std, mean_pt, std_pt, device):
     #test the model
@@ -24,6 +25,12 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device):
 
             data = data.to(device)
             data = (data - mean)/std
+            batch, seq, channels, w, h = data.shape
+
+            data = data.view(-1, data.shape[2],data.shape[3],data.shape[4])
+
+            data = F.interpolate(data, size=(224,224),mode='bilinear',align_corners=False)
+            data = data.view(batch,seq,channels,224,224)
 
 
             labels = labels.to(device)
@@ -77,9 +84,14 @@ def plot_label_vs_prediction(ax, sample_idx):
 
         input_data = input_data.unsqueeze(0)  # Add batch dimension if needed
         input_data = ((input_data - mean) / std).float()
+        batch, seq, channels, w, h = input_data.shape
+
+        input_data = input_data.view(-1, input_data.shape[2],input_data.shape[3],input_data.shape[4])
+        input_data = F.interpolate(input_data, size=(224,224),mode='bilinear',align_corners=False)
+        input_data = input_data.view(batch,seq,channels,224,224)
+
         fused_resnet_model.load_state_dict(best_model_wts)
         fused_resnet_model.eval()
-        #import pdb;pdb.set_trace()
         prediction = fused_resnet_model(input_data)
         prediction = (prediction * std_pt + mean_pt).squeeze(0)  # Plotting in the original space
 
@@ -148,8 +160,8 @@ if __name__ == "__main__":
     train_dataset = Subset(dataset_2D, train_indices)
     test_dataset = Subset(dataset_2D, test_indices)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
 
     #get mean and std of the dataset
@@ -206,6 +218,11 @@ if __name__ == "__main__":
             data = (data - mean)/std
             labels = labels.to(device)
             labels=((labels-mean_pt)/std_pt).float()
+            batch, seq, channels, w, h = data.shape
+            data = data.view(-1, data.shape[2],data.shape[3],data.shape[4])
+            data = F.interpolate(data, size=(224,224),mode='bilinear',align_corners=False)
+            data = data.view(batch,seq,channels,224,224)
+
             optimizer.zero_grad()
             outputs = fused_resnet_model(data)
 
@@ -256,7 +273,7 @@ for i, ax in enumerate(axes.flat):
 
 # Adjust layout to prevent overlap
 plt.tight_layout()
-
+plt.savefig('six_samples.png')
 # Show the plot
 plt.show()
 
