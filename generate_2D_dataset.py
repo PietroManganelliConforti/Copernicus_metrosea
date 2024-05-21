@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import shutil
 
-
+import torch.nn.functional as F
 
 
 
@@ -129,6 +129,11 @@ def generate_cwt_from_1Ddataset(data_path, output_path, save_only_tensors=True):
                     coef_5, freqs_5=pywt.cwt(np.array(data_5), scales, wave)
 
                     stacked_tensor_coef = torch.stack([torch.tensor(coef_1), torch.tensor(coef_3), torch.tensor(coef_5)], dim=0)
+
+                    stacked_tensor_coef = F.interpolate(stacked_tensor_coef.unsqueeze(0), size=(224, 224), mode='bilinear', align_corners=False).squeeze(0)
+
+
+                    print("Stacked tensor shape: ", stacked_tensor_coef.shape)
 
                     torch.save(stacked_tensor_coef, sample_folder+str(i)+"_"+lat+"_"+lon+"_"+wave+"_3depths_tensor.pt")
 
