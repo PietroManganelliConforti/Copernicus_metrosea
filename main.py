@@ -3,7 +3,7 @@ import cv2
 import torch
 import numpy as np
 import pandas as pd
-from dataset2D import Dataset_2D_copernicus, merge_2D_dataset, fused_resnet
+from dataset2D import Dataset_2D_copernicus, merge_2D_dataset, fused_resnet, fused_resnet_LSTM
 torch.backends.cudnn.benchmark = True
 import time
 import matplotlib.pyplot as plt
@@ -35,7 +35,7 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device):
             acc_loss += loss 
     
     print("Test L1 Loss in original space: ", torch.mean(acc_loss).cpu().numpy()/len(test_dataloader))
-
+    return torch.mean(acc_loss).cpu().numpy()/len(test_dataloader)
 def get_mean_and_std(dataset_2D, monodim = True):
     
     mean =0
@@ -70,6 +70,29 @@ def get_mean_and_std(dataset_2D, monodim = True):
     
     return mean, std
 
+def plot_label_vs_prediction(ax, sample_idx):
+    with torch.no_grad():
+        input_data, label = test_dataset[sample_idx]
+        input_data, label = input_data.to(device), label.to(device)
+
+        input_data = input_data.unsqueeze(0)  # Add batch dimension if needed
+        input_data = ((input_data - mean) / std).float()
+        fused_resnet_model.load_state_dict(best_model_wts)
+        fused_resnet_model.eval()
+        #import pdb;pdb.set_trace()
+        prediction = fused_resnet_model(input_data)
+        prediction = (prediction * std_pt + mean_pt).squeeze(0)  # Plotting in the original space
+
+        label = label.cpu().numpy()
+        prediction = prediction.cpu().numpy()
+
+        ax.plot(label, 'o-', label='Label', color='blue')
+        ax.plot(prediction, 'x-', label='Prediction', color='red')
+
+        ax.set_title('Label vs Prediction')
+        ax.set_xlabel('Index')
+        ax.set_ylabel('Value')
+        ax.legend()
 
 if __name__ == "__main__":
 
@@ -87,13 +110,13 @@ if __name__ == "__main__":
 
 
     #load the dataset
-
+##IT IS NOT USED?!
     augmentations = Compose([
-        GaussianBlur((3, 3), (0.1, 2.0)),
-        RandomHorizontalFlip(),
-        RandomAffine(0, translate=(0.5, 0.5)),
-        RandomAffine(0, shear=3),
-        RandomAffine(0, scale=(0.9, 1.1))]
+        GaussianBlur((3, 3), (0.1, 2.0))]
+#        RandomHorizontalFlip(),
+#        RandomAffine(0, translate=(0.5, 0.5)),
+#        RandomAffine(0, shear=3),
+#        RandomAffine(0, scale=(0.9, 1.1))]
     )
 
 
@@ -155,15 +178,17 @@ if __name__ == "__main__":
     criterion = torch.nn.MSELoss()
     criterion_print= torch.nn.L1Loss()
 
-    optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=1e-3)
 
-    num_epochs = 500
+    num_epochs = 50
 
     start = time.time()
 
     print("Training the model...")
 
     print("Start time: ", time.strftime("%H:%M:%S", time.gmtime(start)))
+    best_model = None
+    best_loss = float('inf')
 
     for epoch in range(num_epochs):
 
@@ -179,7 +204,6 @@ if __name__ == "__main__":
             data = data.to(device)
 
             data = (data - mean)/std
-
             labels = labels.to(device)
             labels=((labels-mean_pt)/std_pt).float()
             optimizer.zero_grad()
@@ -210,44 +234,29 @@ if __name__ == "__main__":
 
         if epoch % 10 == 0:
 
-            test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device)
+            actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device)
+            if actual_test_loss < best_loss:
+                best_loss = actual_test_loss
+                best_model_wts = fused_resnet_model.state_dict()
 
 
-    print("Total time: ", time.time()-start)
+    actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device)
+    if actual_test_loss < best_loss:
+        best_loss = actual_test_loss
+        best_model_wts = fused_resnet_model.state_dict()
 
+print("The best test loss is:", best_loss)
 
-    test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device)
+# Create a figure and a set of subplots
+fig, axes = plt.subplots(2, 3, figsize=(20, 10))
 
+# Plot for the first six samples in the subplots
+for i, ax in enumerate(axes.flat):
+    plot_label_vs_prediction(ax, sample_idx=i)
 
-    with torch.no_grad():
-        ##PLOTTING COE
-        sample_idx = 0
-        input_data, label = test_dataset[sample_idx]
-        input_data, label = input_data.to(device), label.to(device)
+# Adjust layout to prevent overlap
+plt.tight_layout()
 
-        input_data = input_data.unsqueeze(0)  # Add batch dimension if needed
-        input_data = ((input_data -mean)/std).float()
-        
-        fused_resnet_model.eval()
+# Show the plot
+plt.show()
 
-        prediction = fused_resnet_model(input_data)
-
-        prediction = (prediction*std_pt + mean_pt).squeeze(0) #plotting in the original space
-
-        label = label.cpu().numpy()
-        prediction = prediction.cpu().numpy()
-        plt.figure(figsize=(10, 5))
-
-        plt.plot(label, 'o-', label='Label', color='blue')
-
-        plt.plot(prediction, 'x-', label='Prediction', color='red')
-
-        plt.title('Label vs Prediction')
-        plt.xlabel('Index')
-        plt.ylabel('Value')
-
-        # Add a legend
-        plt.legend()
-
-        # Show the plot
-        plt.show()

@@ -3,7 +3,7 @@ import cv2
 import torch
 import numpy as np
 import pandas as pd
-
+from torch import nn
 
 class Dataset_2D_copernicus(torch.utils.data.Dataset):
 
@@ -186,11 +186,11 @@ class fused_resnet(torch.nn.Module):
 
         for i in range(16):
                 
-            self.resnet18_list[i].fc = torch.nn.Linear(in_features=512, out_features=1, bias=True)
+            self.resnet18_list[i].fc = torch.nn.Linear(in_features=512, out_features=7, bias=True)
 
         self.resnet18_list = torch.nn.ModuleList(self.resnet18_list)
 
-        self.fusion_layer = torch.nn.Linear(in_features=16, out_features=7, bias=True)
+        self.fusion_layer = torch.nn.Linear(in_features=16*7, out_features=7, bias=True)
 
     def forward(self, x):
 
@@ -198,29 +198,71 @@ class fused_resnet(torch.nn.Module):
 
         for i in range(16):
 
-            # remeber that assert(len(input_tensor.shape) != 3, "Input tensor and batch norm collide")
-
-            #print("input shape: ", x[i].shape, x.shape)
-
             out = self.resnet18_list[i](x[:,i,:,:,:])
 
-            #print("output shape: ", out.shape)
 
             outputs.append(out)
 
         outputs = torch.stack(outputs, dim = 1)
 
-        #print("outputs shape: ", outputs.shape)
 
         outputs = outputs.squeeze()
-
+        if outputs.dim() == 2:
+            outputs = outputs.unsqueeze(0)
+        outputs=outputs.view(outputs.shape[0],-1)
+        #import pdb; pdb.set_trace()
         outputs = self.fusion_layer(outputs)
-
-        #print("outputs shape after fusion: ", outputs.shape)
 
         return outputs
 
+import torch
+import torch.nn as nn
 
+class fused_resnet_LSTM(torch.nn.Module):
+    def __init__(self):
+        super(fused_resnet_LSTM, self).__init__()
+
+        # Create 16 resnet18 and fuse the last layer together
+        self.resnet18_list = [torch.hub.load('pytorch/vision:v0.6.0', 'resnet18', pretrained=True) for _ in range(16)]
+
+        for i in range(16):
+            self.resnet18_list[i].fc = torch.nn.Linear(in_features=512, out_features=1, bias=True)
+
+        self.resnet18_list = torch.nn.ModuleList(self.resnet18_list)
+
+        # Define the LSTM layer
+        self.lstm = nn.LSTM(input_size=16, hidden_size=32, num_layers=1, batch_first=True)
+        
+        # Define the final fully connected layer to map LSTM output to 7 predictions
+        self.fc = nn.Linear(in_features=32, out_features=1)
+
+    def forward(self, x):
+        outputs = []
+
+        for i in range(16):
+            out = self.resnet18_list[i](x[:, i, :, :, :])
+            outputs.append(out)
+
+        # Stack outputs and reshape for the LSTM
+        outputs = torch.cat(outputs, dim=1).unsqueeze(1)  # Shape: (batch_size, 1, 16)
+
+        # Initialize hidden state and cell state for LSTM
+        h0 = torch.zeros(1, x.size(0), 32).to(x.device)
+        c0 = torch.zeros(1, x.size(0), 32).to(x.device)
+
+        # Pass the outputs through the LSTM
+        lstm_out, _ = self.lstm(outputs, (h0, c0))  # Shape: (batch_size, 1, hidden_size)
+
+        # Process the LSTM output to produce 7 predictions
+        predictions = []
+        for t in range(7):
+            pred = self.fc(lstm_out[:, -1, :])
+            predictions.append(pred)
+
+        # Stack the predictions to form the final output
+        final_output = torch.cat(predictions, dim=1)  # Shape: (batch_size, 7)
+
+        return final_output
 
 
 if __name__ == "__main__":
