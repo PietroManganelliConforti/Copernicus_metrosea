@@ -14,7 +14,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 
 class CustomLoss(nn.Module):
-    def __init__(self, alpha=1e-4):
+    def __init__(self, alpha=1e-3):
         super(CustomLoss, self).__init__()
         self.alpha = alpha  # Regularization strength
         
@@ -51,12 +51,14 @@ class CustomLoss(nn.Module):
 
 
 
-def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print):
+def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size):
     #test the model
 
     model.eval()
 
     acc_loss = 0
+
+    distance_per_label = torch.zeros(7)
 
     with torch.no_grad():
 
@@ -79,8 +81,17 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_p
 
             loss = criterion_print(outputs, labels)
             acc_loss += loss 
+
+            for i in range(7): # così non uso la batchsize
+
+                distance_per_label[i] = distance_per_label[i] + torch.mean(torch.abs(outputs[:,i]-labels[:,i]),dim=0)
+
+        
+    
     
     print("Test L1 Loss in original space: ", torch.mean(acc_loss).cpu().numpy()/len(test_dataloader))
+    print("Distance per label: ", distance_per_label/len(test_dataloader))
+
     return torch.mean(acc_loss).cpu().numpy()/len(test_dataloader)
 def get_mean_and_std(dataset_2D, monodim = True):
     
@@ -139,6 +150,10 @@ def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts,
 
         ax.plot(label, 'o-', label='Label', color='blue')
         ax.plot(prediction, 'x-', label='Prediction', color='red')
+        
+        #print from zero
+
+        ax.set_ylim(20)
 
         ax.set_title('Label vs Prediction')
         ax.set_xlabel('Index')
@@ -199,8 +214,10 @@ if __name__ == "__main__":
     train_dataset = Subset(dataset_2D, train_indices)
     test_dataset = Subset(dataset_2D, test_indices)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+    batch_size = 32
+
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 
     #get mean and std of the dataset
@@ -287,18 +304,18 @@ if __name__ == "__main__":
 #        print("Standard deviation of items:", std_items)
 
         epoch_elapsed_time = time.time() - start_time
-        print("Epoch: ",epoch, "L1 Loss in original space: ", (torch.mean(acc_loss).detach().cpu().numpy()/len(train_dataloader)), " train Loss: ", (torch.mean(train_acc_loss).detach().cpu().numpy()/len(train_dataloader)))
+        print("Epoch:",epoch, "L1 Loss in original space: ", (torch.mean(acc_loss).detach().cpu().numpy()/len(train_dataloader)), " train Loss: ", (torch.mean(train_acc_loss).detach().cpu().numpy()/len(train_dataloader)))
 
         if epoch % 10 == 0:
 
-            actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print)
+            actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size)
             
             if actual_test_loss < best_loss:
                 best_loss = actual_test_loss
                 best_model_wts = fused_resnet_model.state_dict()
 
 
-    actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print)
+    actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size)
     
     if actual_test_loss < best_loss:
         best_loss = actual_test_loss
@@ -307,7 +324,7 @@ if __name__ == "__main__":
 print("The best test loss is:", best_loss)
 
 # Create a figure and a set of subplots
-fig, axes = plt.subplots(2, 3, figsize=(20, 10))
+fig, axes = plt.subplots(3, 3, figsize=(20, 10))
 
 # Plot for the first six samples in the subplots
 for i, ax in enumerate(axes.flat):
@@ -315,7 +332,10 @@ for i, ax in enumerate(axes.flat):
 
 # Adjust layout to prevent overlap
 plt.tight_layout()
+
 plt.savefig("plots/six_samples_label_vs_prediction.png")
 # Show the plot
 plt.show()
+
+print("saved the plot")
 
