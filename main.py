@@ -246,9 +246,9 @@ if __name__ == "__main__":
     criterion = CustomLoss()
     criterion_print= torch.nn.L1Loss()
 
-    optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=2e-4)
 
-    num_epochs = 50
+    num_epochs = 100
 
     start = time.time()
 
