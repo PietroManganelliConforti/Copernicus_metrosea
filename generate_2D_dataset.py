@@ -71,7 +71,9 @@ def generate_cwt_from_1Ddataset(data_path, output_path, save_only_tensors=True):
             if not os.path.exists(folder_name):
                 os.makedirs(folder_name)
                 print("Created folder: ", folder_name)
-
+            else:
+                print("SKIPPED folder: ", folder_name)
+                continue
             print("opening dataset from files: \n", root+"/"+file_1,"\n", root+"/"+file_3, "\n", root+"/"+file_5)
 
             dataset_1 = Dataset_1D_copernicus(
@@ -143,8 +145,8 @@ def generate_cwt_from_1Ddataset(data_path, output_path, save_only_tensors=True):
 
                         sample_name = str(i)+"_"+dep+"_"+lat+"_"+lon+"_"+wave
 
-                        plt.matshow(coef)
-                        img_name = sample_name + ".png"
+                        #plt.matshow(coef)
+                        #img_name = sample_name + ".png"
 
                         plt.matshow(coef)
                         img_name = sample_name + ".png"
@@ -232,7 +234,7 @@ if __name__ == "__main__":
         folder_name = "2D_Dataset_copernicus_only_tensors/"
 
     if os.path.exists(folder_name):
-        shutil.rmtree(folder_name)
+        pass
     else:
         os.makedirs(folder_name)
         print("Created folder: ", folder_name)
