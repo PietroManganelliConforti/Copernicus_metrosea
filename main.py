@@ -210,7 +210,7 @@ if __name__ == "__main__":
 
     #parse --get only tensor flag
     parser = argparse.ArgumentParser(description='run training')
-    parser.add_argument('--batch_size', type=int,default=20, help='batch size for training')
+    parser.add_argument('--batch_size', type=int,default=8, help='batch size for training')
     parser.add_argument('--batch_size_test', type=int,default=256, help='batch size for training')
     parser.add_argument('--alpha', type=float, default=0.0, help='alpha for the regularization term of the custom loss')
     
@@ -222,7 +222,7 @@ if __name__ == "__main__":
         transforms.ElasticTransform(alpha=5.0, sigma=0.5) #alpha, sigma sono quelle di default/10
     ])
 
-    dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
+    dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors_32x32/",
                                     label_lat = "45.60", label_lon = "13.54",
                                     transforms = augmentations)
 
@@ -283,7 +283,10 @@ if __name__ == "__main__":
 
     torch.hub._validate_not_a_forked_repo=lambda a,b,c: True  # this is to avoid the error of torch.hub.load
 
-    fused_resnet_model = fused_resnet()
+    small_net_flag = True
+    if small_net_flag: print("Using the small network, be sure to select the right dataset")
+    
+    fused_resnet_model = fused_resnet(small_net_flag=small_net_flag)
 
     fused_resnet_model.to(device)
     #fused_resnet_model = torch.compile(fused_resnet_model)
@@ -340,6 +343,7 @@ if __name__ == "__main__":
             optimizer.step()
             acc_loss +=loss_unorm 
             train_acc_loss += loss
+            
         L1_train_loss=(torch.mean(acc_loss).detach().cpu().numpy()/len(train_dataloader))
         train_loss=(torch.mean(train_acc_loss).detach().cpu().numpy()/len(train_dataloader))
         epoch_elapsed_time = time.time() - start_time

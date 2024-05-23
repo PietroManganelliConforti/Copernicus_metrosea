@@ -178,17 +178,25 @@ def test_2D_dataset_copernicus(device):
 
 class fused_resnet(torch.nn.Module):
 
-    def __init__(self):
+    def __init__(self, small_net_flag = False):
 
         super(fused_resnet, self).__init__()
 
         #create 16 resnet18 and fuse the last layer together
+        if small_net_flag:
 
-        self.resnet18_list = [torch.hub.load('pytorch/vision:v0.6.0', 'resnet18', pretrained=True) for i in range(16)]
+            self.resnet18_list = [torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar100_resnet20", pretrained=True) for i in range(16)]
 
-        for i in range(16):
-                
-            self.resnet18_list[i].fc = torch.nn.Linear(in_features=512, out_features=7, bias=True)
+            for i in range(16):
+
+                self.resnet18_list[i].fc = torch.nn.Linear(in_features=64, out_features=7, bias=True)
+
+        else:
+            self.resnet18_list = [torch.hub.load('pytorch/vision:v0.6.0', 'resnet18', pretrained=True) for i in range(16)]
+
+            for i in range(16):
+                    
+                self.resnet18_list[i].fc = torch.nn.Linear(in_features=512, out_features=7, bias=True)
 
         self.resnet18_list = torch.nn.ModuleList(self.resnet18_list)
 

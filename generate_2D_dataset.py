@@ -19,11 +19,7 @@ import torch.nn.functional as F
 
 
 
-
-
-
-
-def generate_cwt_from_1Ddataset(data_path, output_path, save_only_tensors=True):
+def generate_cwt_from_1Ddataset(data_path, output_path, save_dataset_as_images=False):
 
     wave = 'morl'
 
@@ -71,9 +67,7 @@ def generate_cwt_from_1Ddataset(data_path, output_path, save_only_tensors=True):
             if not os.path.exists(folder_name):
                 os.makedirs(folder_name)
                 print("Created folder: ", folder_name)
-            else:
-                print("SKIPPED folder: ", folder_name)
-                continue
+
             print("opening dataset from files: \n", root+"/"+file_1,"\n", root+"/"+file_3, "\n", root+"/"+file_5)
 
             dataset_1 = Dataset_1D_copernicus(
@@ -132,7 +126,7 @@ def generate_cwt_from_1Ddataset(data_path, output_path, save_only_tensors=True):
 
                     stacked_tensor_coef = torch.stack([torch.tensor(coef_1), torch.tensor(coef_3), torch.tensor(coef_5)], dim=0)
 
-                    stacked_tensor_coef = F.interpolate(stacked_tensor_coef.unsqueeze(0), size=(224, 224), mode='bilinear', align_corners=False).squeeze(0)
+                    stacked_tensor_coef = F.interpolate(stacked_tensor_coef.unsqueeze(0), size=(32, 32), mode='bilinear', align_corners=False).squeeze(0)
 
 
                     print("Stacked tensor shape: ", stacked_tensor_coef.shape)
@@ -141,12 +135,13 @@ def generate_cwt_from_1Ddataset(data_path, output_path, save_only_tensors=True):
 
                     print("Saved tensor: ", sample_folder+str(i)+"_"+lat+"_"+lon+"_"+wave+"_3depths_tensor.pt", stacked_tensor_coef.shape)
 
+                    
                     def save_coef_image(coef, data, labels, sample_folder, i, dep, lat, lon, wave):
 
                         sample_name = str(i)+"_"+dep+"_"+lat+"_"+lon+"_"+wave
 
-                        #plt.matshow(coef)
-                        #img_name = sample_name + ".png"
+                        plt.matshow(coef)
+                        img_name = sample_name + ".png"
 
                         plt.matshow(coef)
                         img_name = sample_name + ".png"
@@ -164,7 +159,8 @@ def generate_cwt_from_1Ddataset(data_path, output_path, save_only_tensors=True):
 
                         print("Saved "+str(i)+" image: ", img_name)
 
-                    if not save_only_tensors:
+
+                    if save_dataset_as_images:
                         save_coef_image(coef_1, data_1, labels_1, sample_folder, i, dep1, lat, lon, wave)
                         save_coef_image(coef_3, data_3, labels_3, sample_folder, i, dep3, lat, lon, wave)
                         save_coef_image(coef_5, data_5, labels_5, sample_folder, i, dep5, lat, lon, wave)
@@ -202,6 +198,7 @@ def generate_data_from_one_dataset(dataset, folder_name, wave, dep_list, lat, lo
         sample_name = str(i)+"_"+dep+"_"+lat+"_"+lon+"_"+wave
         
         img_name = sample_name + ".png"
+
         plt.title("idx: "+str(i)+", dep: "+dep+", lat: "+lat+", lon: "+lon+", wave: "+wave)
         plt.savefig(sample_folder+img_name, bbox_inches='tight',pad_inches=0.0 )
         plt.clf()
@@ -223,24 +220,34 @@ if __name__ == "__main__":
 
     #parse --get only tensor flag
     parser = argparse.ArgumentParser(description='Generate 2D dataset from 1D dataset')
-    parser.add_argument('--only_tensors', action='store_true', help='Save only tensors')
+    parser.add_argument('--save_images', action='store_true', help='Save dataset as images and readable files')
 
     args = parser.parse_args()
 
     input_path = "dataset_copernicus2/"
     folder_name = "2D_Dataset_copernicus/"
     
-    if args.only_tensors:
-        folder_name = "2D_Dataset_copernicus_only_tensors/"
+    folder_name = "2D_Dataset_copernicus_only_tensors_32x32/"
+
+    if args.save_images:
+        folder_name = "2D_Dataset_copernicus_images/"
 
     if os.path.exists(folder_name):
-        pass
+        #ask if user wants to delete the folder
+        print("Folder already exists: ", folder_name)
+        print("Do you want to delete it? (y/n)")
+        answer = input()
+        if answer == "n":
+            sys.exit()
+        shutil.rmtree(folder_name)
+        print("Deleted folder: ", folder_name)
+        
     else:
         os.makedirs(folder_name)
         print("Created folder: ", folder_name)
 
     
-    generate_cwt_from_1Ddataset(data_path = input_path, output_path= folder_name, save_only_tensors= args.only_tensors)
+    generate_cwt_from_1Ddataset(data_path = input_path, output_path= folder_name, save_dataset_as_images= args.save_images)
 
 
 
