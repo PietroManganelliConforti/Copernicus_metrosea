@@ -96,10 +96,8 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_p
         
     
     
-    print("Test L1 Loss in original space: ", torch.mean(acc_loss).cpu().numpy()/len(test_dataloader))
-    print("Distance per label: ", distance_per_label/len(test_dataloader))
 
-    return torch.mean(acc_loss).cpu().numpy()/len(test_dataloader)
+    return torch.mean(acc_loss).cpu().numpy()/len(test_dataloader),distance_per_label/len(test_dataloader)
 def get_mean_and_std(dataset_2D, monodim = True):
     
     mean =0
@@ -268,7 +266,7 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=2e-4)
 
-    num_epochs = 20
+    num_epochs = 30
 
     start = time.time()
 
@@ -318,7 +316,10 @@ if __name__ == "__main__":
         print("Epoch:",epoch, "L1 training Loss in original space: ", L1_train_loss, " train Loss: ", train_loss)
         torch.cuda.empty_cache()
         if epoch > -1:
-            actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
+            actual_test_loss,distance_label_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
+            print("Epoch:",epoch, "    Test L1 Loss in original space: ", actual_test_loss)
+            print("Distance per label: ", distance_label_loss)
+
             if actual_test_loss < best_loss:
                 best_loss = actual_test_loss
                 best_model_wts = fused_resnet_model.state_dict()
