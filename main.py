@@ -9,7 +9,7 @@ import time
 import matplotlib.pyplot as plt
 #torch.set_float32_matmul_precision("high")
 from torch.utils.data import DataLoader, Subset
-from torchvision.transforms import GaussianBlur, RandomHorizontalFlip, RandomAffine, Compose
+from torchvision import transforms
 import torch.nn.functional as F
 import torch.nn as nn
 import argparse
@@ -20,10 +20,13 @@ warnings.filterwarnings("ignore")
 from torch.utils.tensorboard import SummaryWriter
 
 
+
 class CustomLoss(nn.Module):
-    def __init__(self, alpha=1e-3):
+    def __init__(self, alpha=10.0):
+
         super(CustomLoss, self).__init__()
-        self.alpha = alpha  # Regularization strength
+
+        self.alpha = nn.Parameter(torch.tensor(alpha))  # Regularization strength
         
     def forward(self, predictions, targets):
         """
@@ -47,14 +50,23 @@ class CustomLoss(nn.Module):
         """
         Computes the Total Variation regularization term.
         """
-        tv_loss = 0
+        #the value has to have the gradient
+        
+        tv_loss = torch.tensor(0.0, requires_grad=True).to(predictions.device)
+
+        torch.tensor(0.0, requires_grad=True).to(predictions.device)
+
+        # Compute the total variation for each channel
         for i in range(predictions.size(1) - 1):  # Loop until the second last item
             # Compute the absolute difference between adjacent values along the sequence dimension
-            diff = torch.abs(predictions[:, i + 1] - predictions[:, i])
-            # Sum over the output dimension and add to the regularization loss
-            tv_loss += torch.sum(diff)
+            diff = torch.diff(predictions[:, i + 1] - predictions[:, i])
+            diff = abs(diff)
+            # Sum over the output dimension and add to the regularization loss, keep trak the gradient
+            diff = torch.sum(diff)
 
-        return torch.sum(diff)
+            tv_loss = tv_loss + diff
+
+        return tv_loss
 
 
 
@@ -93,11 +105,11 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_p
 
                 distance_per_label[i] = distance_per_label[i] + torch.mean(torch.abs(outputs[:,i]-labels[:,i]),dim=0)
 
-        
-    
-    
-
     return torch.mean(acc_loss).cpu().numpy()/len(test_dataloader),distance_per_label/len(test_dataloader)
+
+
+
+
 def get_mean_and_std(dataset_2D, monodim = True):
     
     mean =0
@@ -132,7 +144,10 @@ def get_mean_and_std(dataset_2D, monodim = True):
     
     return mean, std
 
+
+
 def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts, test_dataset, mean, std, mean_pt, std_pt, device):
+    
     with torch.no_grad():
         input_data, label = test_dataset[sample_idx]
         input_data, label = input_data.to(device), label.to(device)
@@ -165,7 +180,13 @@ def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts,
         ax.set_ylabel('Value')
         ax.legend()
 
+
+
+
+
+
 if __name__ == "__main__":
+
     random_number = random.randint(1, 1000)
     dir_name = f"runs/{random_number}"
     if not os.path.exists(dir_name):
@@ -186,36 +207,30 @@ if __name__ == "__main__":
 
         device_name = torch.cuda.get_device_name(current_device)
 
+
     #parse --get only tensor flag
     parser = argparse.ArgumentParser(description='run training')
     parser.add_argument('--batch_size', type=int,default=20, help='batch size for training')
     parser.add_argument('--batch_size_test', type=int,default=256, help='batch size for training')
 
     args = parser.parse_args()
-    #load the dataset
-##IT IS NOT USED?!
-    augmentations = Compose([
-        GaussianBlur((3, 3), (0.1, 2.0))]
-#        RandomHorizontalFlip(),
-#        RandomAffine(0, translate=(0.5, 0.5)),
-#        RandomAffine(0, shear=3),
-#        RandomAffine(0, scale=(0.9, 1.1))]
-    )
 
+
+
+
+    
+    augmentations = transforms.Compose([    
+        transforms.ElasticTransform(alpha=5.0, sigma=0.5) #alpha, sigma sono quelle di default/10
+    ])
 
     dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
-                                    label_lat = "45.60", label_lon = "13.54")
+                                    label_lat = "45.60", label_lon = "13.54",
+                                    transforms = augmentations)
 
     print("dataset: ",  dataset_2D[0][0].shape, dataset_2D[0][1].shape)
 
-    ##mean and variance of the labels:
 
-    mean=np.asarray([16.3281, 16.3271, 16.3276, 16.3307, 16.3349, 16.3392, 16.3471])
-    std=np.asarray([5.9852, 5.9800, 5.9789, 5.9768, 5.9834, 5.9868, 5.9880])
-    mean_pt =torch.from_numpy(mean).to(device)
-    std_pt =torch.from_numpy(std).to(device)
-#    mean_pt.fill_(0)
-#    std_pt.fill_(1)
+
 
     #split the dataset
 
@@ -238,11 +253,20 @@ if __name__ == "__main__":
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size_test, shuffle=False,num_workers=8)
 
 
+
+
+    #mean and std of the labels
+
+    mean_pt = np.asarray([16.3281, 16.3271, 16.3276, 16.3307, 16.3349, 16.3392, 16.3471])
+    std_pt = np.asarray([5.9852, 5.9800, 5.9789, 5.9768, 5.9834, 5.9868, 5.9880])
+
+    mean_pt = torch.from_numpy(mean_pt).to(device)
+    std_pt = torch.from_numpy(std_pt).to(device)
+
+
     #get mean and std of the dataset
 
     mean, std = get_mean_and_std(train_dataset)
- #   mean.fill_(0) 
-#    std.fill_(1)
 
     # approximate mean and std 
 
@@ -253,6 +277,9 @@ if __name__ == "__main__":
     std = std.to(device)
 
 
+
+
+
     #train the model
 
     torch.hub._validate_not_a_forked_repo=lambda a,b,c: True  # this is to avoid the error of torch.hub.load
@@ -261,6 +288,8 @@ if __name__ == "__main__":
 
     fused_resnet_model.to(device)
     #fused_resnet_model = torch.compile(fused_resnet_model)
+
+
     criterion = CustomLoss()
     criterion_print= torch.nn.L1Loss()
 
