@@ -105,7 +105,10 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_p
 
                 distance_per_label[i] = distance_per_label[i] + torch.mean(torch.abs(outputs[:,i]-labels[:,i]),dim=0)
 
-    return torch.mean(acc_loss).cpu().numpy()/len(test_dataloader),distance_per_label/len(test_dataloader)
+            ret_value1 = torch.mean(acc_loss).cpu().numpy()/len(test_dataloader)
+            ret_value2 = distance_per_label/len(test_dataloader)
+
+    return ret_value1, ret_value2
 
 
 
@@ -219,10 +222,10 @@ if __name__ == "__main__":
 
     
     augmentations = transforms.Compose([    
-        transforms.ElasticTransform(alpha=5.0, sigma=0.5) #alpha, sigma sono quelle di default/10
+        #transforms.ElasticTransform(alpha=5.0, sigma=0.5) #alpha, sigma sono quelle di default/10
     ])
-
-    dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors_32x32/",
+    
+    dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
                                     label_lat = "45.60", label_lon = "13.54",
                                     transforms = augmentations)
 
@@ -283,7 +286,8 @@ if __name__ == "__main__":
 
     torch.hub._validate_not_a_forked_repo=lambda a,b,c: True  # this is to avoid the error of torch.hub.load
 
-    small_net_flag = True
+    small_net_flag = False
+
     if small_net_flag: print("Using the small network, be sure to select the right dataset")
     
     fused_resnet_model = fused_resnet(small_net_flag=small_net_flag)
@@ -331,10 +335,12 @@ if __name__ == "__main__":
             data = (data - mean)/std
             labels = labels.to(device)
             labels=((labels-mean_pt)/std_pt).float()
+
             batch, seq, channels, w, h = data.shape
-            data = data.view(-1, data.shape[2],data.shape[3],data.shape[4])
-            data = F.interpolate(data, size=(224,224),mode='bilinear',align_corners=False)
-            data = data.view(batch,seq,channels,224,224)
+
+            # data = data.view(-1, data.shape[2],data.shape[3],data.shape[4])
+            # data = F.interpolate(data, size=(224,224),mode='bilinear',align_corners=False)
+            # data = data.view(batch,seq,channels,224,224)
 
             optimizer.zero_grad()
             outputs = fused_resnet_model(data)
@@ -357,7 +363,7 @@ if __name__ == "__main__":
 
         if epoch > -1:
             #test evaluated at the beginning of the epoch
-            
+
             print("Epoch:",epoch, "    Test L1 Loss in original space: ", actual_test_loss)
             print("Distance per label: ", distance_label_loss)
 

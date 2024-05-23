@@ -183,16 +183,18 @@ class fused_resnet(torch.nn.Module):
         super(fused_resnet, self).__init__()
 
         #create 16 resnet18 and fuse the last layer together
-        if small_net_flag:
+        if small_net_flag:  #https://github.com/chenyaofo/pytorch-cifar-models
 
-            self.resnet18_list = [torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar100_resnet20", pretrained=True) for i in range(16)]
+            print("Using small networks")
+
+            self.resnet18_list = [torch.hub.load("chenyaofo/pytorch-cifar-models", "cifar100_resnet56", pretrained=True, verbose=False) for i in range(16)]
 
             for i in range(16):
 
                 self.resnet18_list[i].fc = torch.nn.Linear(in_features=64, out_features=7, bias=True)
 
         else:
-            self.resnet18_list = [torch.hub.load('pytorch/vision:v0.6.0', 'resnet18', pretrained=True) for i in range(16)]
+            self.resnet18_list = [torch.hub.load('pytorch/vision:v0.6.0', 'resnet18', pretrained=True, verbose=False) for i in range(16)]
 
             for i in range(16):
                     
@@ -228,7 +230,7 @@ class fused_resnet(torch.nn.Module):
 import torch
 import torch.nn as nn
 
-class fused_resnet_LSTM(torch.nn.Module):
+class fused_resnet_LSTM(torch.nn.Module): # da provare con 16 LSTM
     def __init__(self):
         super(fused_resnet_LSTM, self).__init__()
 
@@ -273,6 +275,7 @@ class fused_resnet_LSTM(torch.nn.Module):
         final_output = torch.cat(predictions, dim=1)  # Shape: (batch_size, 7)
 
         return final_output
+
 
 
 if __name__ == "__main__":
