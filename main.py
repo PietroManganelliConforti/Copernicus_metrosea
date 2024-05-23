@@ -22,7 +22,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 class CustomLoss(nn.Module):
-    def __init__(self, alpha=10.0):
+    def __init__(self, alpha=0.0):
 
         super(CustomLoss, self).__init__()
 
@@ -212,11 +212,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='run training')
     parser.add_argument('--batch_size', type=int,default=20, help='batch size for training')
     parser.add_argument('--batch_size_test', type=int,default=256, help='batch size for training')
-
+    parser.add_argument('--alpha', type=float, default=0.0, help='alpha for the regularization term of the custom loss')
+    
+    
     args = parser.parse_args()
-
-
-
 
     
     augmentations = transforms.Compose([    
@@ -289,8 +288,10 @@ if __name__ == "__main__":
     fused_resnet_model.to(device)
     #fused_resnet_model = torch.compile(fused_resnet_model)
 
+    criterion = nn.MSELoss()
+    if args.alpha > 0.0:
+        criterion = CustomLoss(alpha=args.alpha)
 
-    criterion = CustomLoss()
     criterion_print= torch.nn.L1Loss()
 
     optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=2e-4)
