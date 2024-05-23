@@ -9,13 +9,19 @@ import time
 import matplotlib.pyplot as plt
 #torch.set_float32_matmul_precision("high")
 from torch.utils.data import DataLoader, Subset
-from torchvision import transforms
+from torchvision.transforms import GaussianBlur, RandomHorizontalFlip, RandomAffine, Compose
 import torch.nn.functional as F
 import torch.nn as nn
+import argparse
+import random
+import warnings
+warnings.filterwarnings("ignore")
+
+from torch.utils.tensorboard import SummaryWriter
 
 
 class CustomLoss(nn.Module):
-    def __init__(self, alpha=1):
+    def __init__(self, alpha=1e-3):
         super(CustomLoss, self).__init__()
         self.alpha = alpha  # Regularization strength
         
@@ -41,23 +47,15 @@ class CustomLoss(nn.Module):
         """
         Computes the Total Variation regularization term.
         """
-        #the value has to have the gradient
-        
-        tv_loss = torch.tensor(0.0, requires_grad=True).to(predictions.device)
-
-        torch.tensor(0.0, requires_grad=True).to(predictions.device)
-
-        # Compute the total variation for each channel
+        tv_loss = 0
         for i in range(predictions.size(1) - 1):  # Loop until the second last item
             # Compute the absolute difference between adjacent values along the sequence dimension
-            diff = torch.diff(predictions[:, i + 1] - predictions[:, i])
-            diff = abs(diff)
-            # Sum over the output dimension and add to the regularization loss, keep trak the gradient
-            diff = torch.sum(diff)
+            diff = torch.abs(predictions[:, i + 1] - predictions[:, i])
+            # Sum over the output dimension and add to the regularization loss
+            tv_loss += torch.sum(diff)
 
-            tv_loss = tv_loss + diff
+        return torch.sum(diff)
 
-        return tv_loss
 
 
 def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size):
@@ -93,15 +91,13 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_p
 
             for i in range(7): # così non uso la batchsize
 
-                distance_per_label[i] = distance_per_label[i] + torch.mean(outputs[:,i]-labels[:,i],dim=0)
+                distance_per_label[i] = distance_per_label[i] + torch.mean(torch.abs(outputs[:,i]-labels[:,i]),dim=0)
 
         
     
     
-    print("Test L1 Loss in original space: ", torch.mean(acc_loss).cpu().numpy()/len(test_dataloader))
-    print("Distance per label: ", distance_per_label/len(test_dataloader), "mean distance: ", torch.mean(distance_per_label/len(test_dataloader)).item())
 
-    return torch.mean(acc_loss).cpu().numpy()/len(test_dataloader)
+    return torch.mean(acc_loss).cpu().numpy()/len(test_dataloader),distance_per_label/len(test_dataloader)
 def get_mean_and_std(dataset_2D, monodim = True):
     
     mean =0
@@ -138,7 +134,7 @@ def get_mean_and_std(dataset_2D, monodim = True):
 
 def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts, test_dataset, mean, std, mean_pt, std_pt, device):
     with torch.no_grad():
-        input_data, label = test_dataset[sample_idx*3] # to print different samples
+        input_data, label = test_dataset[sample_idx]
         input_data, label = input_data.to(device), label.to(device)
 
         input_data = input_data.unsqueeze(0)  # Add batch dimension if needed
@@ -152,7 +148,6 @@ def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts,
         fused_resnet_model.load_state_dict(best_model_wts)
         fused_resnet_model.eval()
         prediction = fused_resnet_model(input_data)
-
         prediction = (prediction * std_pt + mean_pt).squeeze(0)  # Plotting in the original space
 
         label = label.cpu().numpy()
@@ -163,7 +158,7 @@ def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts,
         
         #print from zero
 
-        #ax.set_ylim(20)
+        ax.set_ylim(20)
 
         ax.set_title('Label vs Prediction')
         ax.set_xlabel('Index')
@@ -171,6 +166,13 @@ def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts,
         ax.legend()
 
 if __name__ == "__main__":
+    random_number = random.randint(1, 1000)
+    dir_name = f"runs/{random_number}"
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+        print(f"Directory {dir_name} created.")
+
+    writer = SummaryWriter(dir_name)
 
     device = "cpu"
 
@@ -184,24 +186,27 @@ if __name__ == "__main__":
 
         device_name = torch.cuda.get_device_name(current_device)
 
+    #parse --get only tensor flag
+    parser = argparse.ArgumentParser(description='run training')
+    parser.add_argument('--batch_size', type=int,default=20, help='batch size for training')
+    parser.add_argument('--batch_size_test', type=int,default=256, help='batch size for training')
 
+    args = parser.parse_args()
     #load the dataset
-    
-    augmentations = transforms.Compose([    
-        transforms.ElasticTransform(alpha=5.0, sigma=0.5) #alpha, sigma default/10
-        #RandomGaussianNoise(mean= 0, std=0.2), #mean, std
-#        GaussianBlur((3, 3), (0.1, 2.0))]
-#        transforms.RandomResizedCrop()
+##IT IS NOT USED?!
+    augmentations = Compose([
+        GaussianBlur((3, 3), (0.1, 2.0))]
+#        RandomHorizontalFlip(),
+#        RandomAffine(0, translate=(0.5, 0.5)),
 #        RandomAffine(0, shear=3),
-#        RandomAffine(0, scale=(0.9, 1.1))
-    ])
+#        RandomAffine(0, scale=(0.9, 1.1))]
+    )
 
 
     dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
-                                    label_lat = "45.60", label_lon = "13.54",
-                                    transforms = augmentations)
+                                    label_lat = "45.60", label_lon = "13.54")
 
-
+    print("dataset: ",  dataset_2D[0][0].shape, dataset_2D[0][1].shape)
 
     ##mean and variance of the labels:
 
@@ -226,14 +231,12 @@ if __name__ == "__main__":
     train_dataset = Subset(dataset_2D, train_indices)
     test_dataset = Subset(dataset_2D, test_indices)
 
-    batch_size = 32
+    batch_size = args.batch_size
+    batch_size_test = args.batch_size_test
 
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=8)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size_test, shuffle=False,num_workers=8)
 
-    print("size of the train and test datasets: ", len(train_dataset),",", len(test_dataset))
-
-    print("Shape of the first sample and label in the dataset: ", train_dataset[0][0].shape, train_dataset[0][1].shape)
 
     #get mean and std of the dataset
 
@@ -263,7 +266,7 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=2e-4)
 
-    num_epochs = 100
+    num_epochs = 30
 
     start = time.time()
 
@@ -305,36 +308,29 @@ if __name__ == "__main__":
             loss.backward()
 
             optimizer.step()
-            acc_loss +=loss_unorm #(loss*std_pt)+mean_pt ##showing in denormalized, original values
+            acc_loss +=loss_unorm 
             train_acc_loss += loss
-
-        # Concatenate all items into a single tensor along the first dimension
-#        concatenated_items = torch.cat(label_list, dim=0)
-
-        # Calculate mean and standard deviation of the concatenated tensor
-#        mean_items = torch.mean(concatenated_items, dim=0)
-#        std_items = torch.std(concatenated_items, dim=0)
-
-#        print("Mean of items:", mean_items)
-#        print("Standard deviation of items:", std_items)
-
+        L1_train_loss=(torch.mean(acc_loss).detach().cpu().numpy()/len(train_dataloader))
+        train_loss=(torch.mean(train_acc_loss).detach().cpu().numpy()/len(train_dataloader))
         epoch_elapsed_time = time.time() - start_time
-        print("Epoch:",epoch, "L1 Loss in original space: ", (torch.mean(acc_loss).detach().cpu().numpy()/len(train_dataloader)), " train Loss: ", (torch.mean(train_acc_loss).detach().cpu().numpy()/len(train_dataloader)))
+        print("Epoch:",epoch, "L1 training Loss in original space: ", L1_train_loss, " train Loss: ", train_loss)
+        torch.cuda.empty_cache()
+        if epoch > -1:
+            actual_test_loss,distance_label_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
+            print("Epoch:",epoch, "    Test L1 Loss in original space: ", actual_test_loss)
+            print("Distance per label: ", distance_label_loss)
 
-        if epoch % 10 == 0:
-
-            actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size)
-            
             if actual_test_loss < best_loss:
                 best_loss = actual_test_loss
                 best_model_wts = fused_resnet_model.state_dict()
+            writer.add_scalars('data/', {'L1_training_loss':L1_train_loss,'L1_test_loss':actual_test_loss}, global_step=epoch)
+            writer.flush()
 
-
-    actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size)
+#    actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
     
-    if actual_test_loss < best_loss:
-        best_loss = actual_test_loss
-        best_model_wts = fused_resnet_model.state_dict()
+#    if actual_test_loss < best_loss:
+#        best_loss = actual_test_loss
+#        best_model_wts = fused_resnet_model.state_dict()
 
 print("The best test loss is:", best_loss)
 
@@ -348,9 +344,11 @@ for i, ax in enumerate(axes.flat):
 # Adjust layout to prevent overlap
 plt.tight_layout()
 
-plt.savefig("plots/six_samples_label_vs_prediction.png")
+plt.savefig(os.path.join(dir_name,"six_samples_label_vs_prediction.png"))
+writer.add_figure('six_samples_label_vs_prediction', fig, global_step=0)
+writer.flush()
+writer.close()
 # Show the plot
 plt.show()
 
 print("saved the plot")
-
