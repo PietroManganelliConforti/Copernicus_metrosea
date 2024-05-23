@@ -12,6 +12,13 @@ from torch.utils.data import DataLoader, Subset
 from torchvision.transforms import GaussianBlur, RandomHorizontalFlip, RandomAffine, Compose
 import torch.nn.functional as F
 import torch.nn as nn
+import argparse
+import random
+import warnings
+warnings.filterwarnings("ignore")
+
+from torch.utils.tensorboard import SummaryWriter
+
 
 class CustomLoss(nn.Module):
     def __init__(self, alpha=1e-3):
@@ -161,6 +168,13 @@ def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts,
         ax.legend()
 
 if __name__ == "__main__":
+    random_number = random.randint(1, 1000)
+    dir_name = f"runs/{random_number}"
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+        print(f"Directory {dir_name} created.")
+
+    writer = SummaryWriter(dir_name)
 
     device = "cpu"
 
@@ -174,7 +188,12 @@ if __name__ == "__main__":
 
         device_name = torch.cuda.get_device_name(current_device)
 
+    #parse --get only tensor flag
+    parser = argparse.ArgumentParser(description='run training')
+    parser.add_argument('--batch_size', type=int,default=20, help='batch size for training')
+    parser.add_argument('--batch_size_test', type=int,default=256, help='batch size for training')
 
+    args = parser.parse_args()
     #load the dataset
 ##IT IS NOT USED?!
     augmentations = Compose([
@@ -214,10 +233,11 @@ if __name__ == "__main__":
     train_dataset = Subset(dataset_2D, train_indices)
     test_dataset = Subset(dataset_2D, test_indices)
 
-    batch_size = 32
+    batch_size = args.batch_size
+    batch_size_test = args.batch_size_test
 
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=8)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size_test, shuffle=False,num_workers=8)
 
 
     #get mean and std of the dataset
@@ -248,7 +268,7 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=2e-4)
 
-    num_epochs = 100
+    num_epochs = 20
 
     start = time.time()
 
@@ -290,36 +310,26 @@ if __name__ == "__main__":
             loss.backward()
 
             optimizer.step()
-            acc_loss +=loss_unorm #(loss*std_pt)+mean_pt ##showing in denormalized, original values
+            acc_loss +=loss_unorm 
             train_acc_loss += loss
-
-        # Concatenate all items into a single tensor along the first dimension
-#        concatenated_items = torch.cat(label_list, dim=0)
-
-        # Calculate mean and standard deviation of the concatenated tensor
-#        mean_items = torch.mean(concatenated_items, dim=0)
-#        std_items = torch.std(concatenated_items, dim=0)
-
-#        print("Mean of items:", mean_items)
-#        print("Standard deviation of items:", std_items)
-
+        L1_train_loss=(torch.mean(acc_loss).detach().cpu().numpy()/len(train_dataloader))
+        train_loss=(torch.mean(train_acc_loss).detach().cpu().numpy()/len(train_dataloader))
         epoch_elapsed_time = time.time() - start_time
-        print("Epoch:",epoch, "L1 Loss in original space: ", (torch.mean(acc_loss).detach().cpu().numpy()/len(train_dataloader)), " train Loss: ", (torch.mean(train_acc_loss).detach().cpu().numpy()/len(train_dataloader)))
-
-        if epoch % 10 == 0:
-
-            actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size)
-            
+        print("Epoch:",epoch, "L1 training Loss in original space: ", L1_train_loss, " train Loss: ", train_loss)
+        torch.cuda.empty_cache()
+        if epoch > -1:
+            actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
             if actual_test_loss < best_loss:
                 best_loss = actual_test_loss
                 best_model_wts = fused_resnet_model.state_dict()
+            writer.add_scalars('data/', {'L1_training_loss':L1_train_loss,'L1_test_loss':actual_test_loss}, global_step=epoch)
+            writer.flush()
 
-
-    actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size)
+#    actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
     
-    if actual_test_loss < best_loss:
-        best_loss = actual_test_loss
-        best_model_wts = fused_resnet_model.state_dict()
+#    if actual_test_loss < best_loss:
+#        best_loss = actual_test_loss
+#        best_model_wts = fused_resnet_model.state_dict()
 
 print("The best test loss is:", best_loss)
 
@@ -333,7 +343,10 @@ for i, ax in enumerate(axes.flat):
 # Adjust layout to prevent overlap
 plt.tight_layout()
 
-plt.savefig("plots/six_samples_label_vs_prediction.png")
+plt.savefig(os.path.join(dir_name,"six_samples_label_vs_prediction.png"))
+writer.add_figure('six_samples_label_vs_prediction', fig, global_step=0)
+writer.flush()
+writer.close()
 # Show the plot
 plt.show()
 
