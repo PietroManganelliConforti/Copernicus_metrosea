@@ -28,7 +28,7 @@ class Dataset_2D_copernicus(torch.utils.data.Dataset):
 
 class merge_2D_dataset(torch.utils.data.Dataset):
 
-    def __init__(self, folder_path = "2D_Dataset_copernicus_only_tensors/",label_lat = "45.60", label_lon = "13.54"):
+    def __init__(self, folder_path = "2D_Dataset_copernicus_only_tensors/",label_lat = "45.60", label_lon = "13.54", transforms = None):
 
         self.folder_path = folder_path
         self.sample_folders = os.listdir(folder_path)
@@ -40,11 +40,13 @@ class merge_2D_dataset(torch.utils.data.Dataset):
         self.label_lat = label_lat
         self.label_lon = label_lon
 
+        self.transforms = transforms
+
         
     def __len__(self):
         return len(self.dataset_2D_list[0]) 
 
-    def __getitem__(self, idx, transforms = None):
+    def __getitem__(self, idx):
 
         list_of_inputs = []
 
@@ -61,8 +63,8 @@ class merge_2D_dataset(torch.utils.data.Dataset):
 
         output_tensor = torch.stack(list_of_inputs)
 
-        if transforms:
-            output_tensor = transforms(output_tensor)
+        if self.transforms:
+            output_tensor = self.transforms(output_tensor)
 
         return output_tensor, labels
 

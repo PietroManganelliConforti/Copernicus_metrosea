@@ -9,12 +9,13 @@ import time
 import matplotlib.pyplot as plt
 #torch.set_float32_matmul_precision("high")
 from torch.utils.data import DataLoader, Subset
-from torchvision.transforms import GaussianBlur, RandomHorizontalFlip, RandomAffine, Compose
+from torchvision import transforms
 import torch.nn.functional as F
 import torch.nn as nn
 
+
 class CustomLoss(nn.Module):
-    def __init__(self, alpha=1e-3):
+    def __init__(self, alpha=1):
         super(CustomLoss, self).__init__()
         self.alpha = alpha  # Regularization strength
         
@@ -40,15 +41,23 @@ class CustomLoss(nn.Module):
         """
         Computes the Total Variation regularization term.
         """
-        tv_loss = 0
+        #the value has to have the gradient
+        
+        tv_loss = torch.tensor(0.0, requires_grad=True).to(predictions.device)
+
+        torch.tensor(0.0, requires_grad=True).to(predictions.device)
+
+        # Compute the total variation for each channel
         for i in range(predictions.size(1) - 1):  # Loop until the second last item
             # Compute the absolute difference between adjacent values along the sequence dimension
-            diff = torch.abs(predictions[:, i + 1] - predictions[:, i])
-            # Sum over the output dimension and add to the regularization loss
-            tv_loss += torch.sum(diff)
+            diff = torch.diff(predictions[:, i + 1] - predictions[:, i])
+            diff = abs(diff)
+            # Sum over the output dimension and add to the regularization loss, keep trak the gradient
+            diff = torch.sum(diff)
 
-        return torch.sum(diff)
+            tv_loss = tv_loss + diff
 
+        return tv_loss
 
 
 def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size):
@@ -84,13 +93,13 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_p
 
             for i in range(7): # così non uso la batchsize
 
-                distance_per_label[i] = distance_per_label[i] + torch.mean(torch.abs(outputs[:,i]-labels[:,i]),dim=0)
+                distance_per_label[i] = distance_per_label[i] + torch.mean(outputs[:,i]-labels[:,i],dim=0)
 
         
     
     
     print("Test L1 Loss in original space: ", torch.mean(acc_loss).cpu().numpy()/len(test_dataloader))
-    print("Distance per label: ", distance_per_label/len(test_dataloader))
+    print("Distance per label: ", distance_per_label/len(test_dataloader), "mean distance: ", torch.mean(distance_per_label/len(test_dataloader)).item())
 
     return torch.mean(acc_loss).cpu().numpy()/len(test_dataloader)
 def get_mean_and_std(dataset_2D, monodim = True):
@@ -129,7 +138,7 @@ def get_mean_and_std(dataset_2D, monodim = True):
 
 def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts, test_dataset, mean, std, mean_pt, std_pt, device):
     with torch.no_grad():
-        input_data, label = test_dataset[sample_idx]
+        input_data, label = test_dataset[sample_idx*3] # to print different samples
         input_data, label = input_data.to(device), label.to(device)
 
         input_data = input_data.unsqueeze(0)  # Add batch dimension if needed
@@ -143,6 +152,7 @@ def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts,
         fused_resnet_model.load_state_dict(best_model_wts)
         fused_resnet_model.eval()
         prediction = fused_resnet_model(input_data)
+
         prediction = (prediction * std_pt + mean_pt).squeeze(0)  # Plotting in the original space
 
         label = label.cpu().numpy()
@@ -153,7 +163,7 @@ def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts,
         
         #print from zero
 
-        ax.set_ylim(20)
+        #ax.set_ylim(20)
 
         ax.set_title('Label vs Prediction')
         ax.set_xlabel('Index')
@@ -176,18 +186,22 @@ if __name__ == "__main__":
 
 
     #load the dataset
-##IT IS NOT USED?!
-    augmentations = Compose([
-        GaussianBlur((3, 3), (0.1, 2.0))]
-#        RandomHorizontalFlip(),
-#        RandomAffine(0, translate=(0.5, 0.5)),
+    
+    augmentations = transforms.Compose([    
+        transforms.ElasticTransform(alpha=5.0, sigma=0.5) #alpha, sigma default/10
+        #RandomGaussianNoise(mean= 0, std=0.2), #mean, std
+#        GaussianBlur((3, 3), (0.1, 2.0))]
+#        transforms.RandomResizedCrop()
 #        RandomAffine(0, shear=3),
-#        RandomAffine(0, scale=(0.9, 1.1))]
-    )
+#        RandomAffine(0, scale=(0.9, 1.1))
+    ])
 
 
     dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
-                                    label_lat = "45.60", label_lon = "13.54")
+                                    label_lat = "45.60", label_lon = "13.54",
+                                    transforms = augmentations)
+
+
 
     print("dataset: ",  dataset_2D[0][0].shape, dataset_2D[0][1].shape)
 
@@ -219,6 +233,8 @@ if __name__ == "__main__":
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
+    print("size of the train dataset: ", len(train_dataset), "size of the test dataset: ", len(test_dataset))
+
 
     #get mean and std of the dataset
 
@@ -248,7 +264,7 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=2e-4)
 
-    num_epochs = 100
+    num_epochs = 50
 
     start = time.time()
 
@@ -323,8 +339,12 @@ if __name__ == "__main__":
 
 print("The best test loss is:", best_loss)
 
+#save the best model
+
+torch.save(best_model_wts, "best_model_wts.pt")
+
 # Create a figure and a set of subplots
-fig, axes = plt.subplots(3, 3, figsize=(20, 10))
+fig, axes = plt.subplots(5, 5, figsize=(20, 10))
 
 # Plot for the first six samples in the subplots
 for i, ax in enumerate(axes.flat):
