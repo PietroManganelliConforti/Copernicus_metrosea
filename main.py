@@ -85,12 +85,12 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_p
 
             data = data.to(device)
             data = (data - mean)/std
-            batch, seq, channels, w, h = data.shape
+            # batch, seq, channels, w, h = data.shape
 
-            data = data.view(-1, data.shape[2],data.shape[3],data.shape[4])
+            # data = data.view(-1, data.shape[2],data.shape[3],data.shape[4])
 
-            data = F.interpolate(data, size=(224,224),mode='bilinear',align_corners=False)
-            data = data.view(batch,seq,channels,224,224)
+            # data = F.interpolate(data, size=(224,224),mode='bilinear',align_corners=False)
+            # data = data.view(batch,seq,channels,224,224)
 
 
             labels = labels.to(device)
@@ -103,7 +103,7 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_p
 
             for i in range(7): # così non uso la batchsize
 
-                distance_per_label[i] = distance_per_label[i] + torch.mean(torch.abs(outputs[:,i]-labels[:,i]),dim=0)
+                distance_per_label[i] = distance_per_label[i] + torch.mean(outputs[:,i]-labels[:,i],dim=0)
 
             ret_value1 = torch.mean(acc_loss).cpu().numpy()/len(test_dataloader)
             ret_value2 = distance_per_label/len(test_dataloader)
