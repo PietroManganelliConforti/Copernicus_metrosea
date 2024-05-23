@@ -309,6 +309,8 @@ if __name__ == "__main__":
     best_model = None
     best_loss = float('inf')
 
+
+
     for epoch in range(num_epochs):
 
         start_time = time.time()
@@ -318,6 +320,9 @@ if __name__ == "__main__":
         acc_loss = 0
         train_acc_loss = 0
         label_list = []
+
+
+        actual_test_loss,distance_label_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
 
         for i, (data, labels) in enumerate(train_dataloader):
 
@@ -349,8 +354,10 @@ if __name__ == "__main__":
         epoch_elapsed_time = time.time() - start_time
         print("Epoch:",epoch, "L1 training Loss in original space: ", L1_train_loss, " train Loss: ", train_loss)
         torch.cuda.empty_cache()
+
         if epoch > -1:
-            actual_test_loss,distance_label_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
+            #test evaluated at the beginning of the epoch
+            
             print("Epoch:",epoch, "    Test L1 Loss in original space: ", actual_test_loss)
             print("Distance per label: ", distance_label_loss)
 
