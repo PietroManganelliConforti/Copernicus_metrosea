@@ -32,10 +32,10 @@ class merge_2D_dataset(torch.utils.data.Dataset):
 
         self.folder_path = folder_path
         self.sample_folders = os.listdir(folder_path)
-
-        print("list of folders in the path "+folder_path+" merged dataset: ", self.sample_folders)
         
         self.dataset_2D_list = [ Dataset_2D_copernicus(self.folder_path+path) for path in self.sample_folders]
+
+        print("N of 2D dataset loaded: ", len(self.dataset_2D_list))
 
         self.label_lat = label_lat
         self.label_lon = label_lon
