@@ -290,8 +290,9 @@ if __name__ == "__main__":
 
     if small_net_flag: print("Using the small network, be sure to select the right dataset")
     
+
     fused_resnet_model = fused_resnet(small_net_flag=small_net_flag)
-#    fused_resnet_model = fused_resnet_LSTM()
+    #fused_resnet_model = fused_resnet_LSTM()
 
     fused_resnet_model.to(device)
     #fused_resnet_model = torch.compile(fused_resnet_model)
