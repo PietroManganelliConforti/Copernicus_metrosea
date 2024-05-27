@@ -70,7 +70,7 @@ class CustomLoss(nn.Module):
 
 
 
-def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size):
+def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print, batch_size):
     #test the model
 
     model.eval()
@@ -188,19 +188,34 @@ def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts,
 
 
 
-if __name__ == "__main__":
+def run_single_training_and_test(repetition_path):
+
+    ret_dict = {}
 
     random_number = random.randint(1, 1000)
-    dir_name = f"runs/{random_number}"
+    dir_name = repetition_path # f"runs/{random_number}"
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)
         print(f"Directory {dir_name} created.")
 
     writer = SummaryWriter(dir_name)
+    ret_dict["tb_dir_name"] = dir_name
+
+
+
+    #parse --get only tensor flag
+    parser = argparse.ArgumentParser(description='run training')
+    parser.add_argument('--batch_size', type=int,default=8, help='batch size for training')
+    parser.add_argument('--batch_size_test', type=int,default=256, help='batch size for training')
+    parser.add_argument('--alpha', type=float, default=0.0, help='alpha for the regularization term of the custom loss')
+    parser.add_argument('--use_cpu', type=bool, default=False, help='use gpu or not')
+    
+    args = parser.parse_args()
+
 
     device = "cpu"
 
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and not args.use_cpu:
 
         device = ("cuda:0")  # Fixed the device to cuda 0
 
@@ -210,16 +225,10 @@ if __name__ == "__main__":
 
         device_name = torch.cuda.get_device_name(current_device)
 
+    print("Device: ", device)
 
-    #parse --get only tensor flag
-    parser = argparse.ArgumentParser(description='run training')
-    parser.add_argument('--batch_size', type=int,default=8, help='batch size for training')
-    parser.add_argument('--batch_size_test', type=int,default=256, help='batch size for training')
-    parser.add_argument('--alpha', type=float, default=0.0, help='alpha for the regularization term of the custom loss')
-    
-    
-    args = parser.parse_args()
 
+    ret_dict["alpha"] = args.alpha
     
     augmentations = transforms.Compose([    
         #transforms.ElasticTransform(alpha=5.0, sigma=0.5) #alpha, sigma sono quelle di default/10
@@ -240,6 +249,8 @@ if __name__ == "__main__":
 
     split_index = int(split * len(dataset_2D))
 
+    #TODO CROSS VALIDATION SULLO SPLIT INDEX
+
     overlapping_indexes = int((30+7)/7)  # where 30 is the window size and 7 is the output size and the stride size. With math.ceil the days overlap is removed
 
     train_indices = list(range(split_index - overlapping_indexes))
@@ -254,8 +265,8 @@ if __name__ == "__main__":
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,num_workers=8)
     test_dataloader = DataLoader(test_dataset, batch_size=batch_size_test, shuffle=False,num_workers=8)
 
-
-
+    ret_dict["batch_size"] = batch_size
+    ret_dict["batch_size_test"] = batch_size_test
 
     #mean and std of the labels
 
@@ -281,7 +292,6 @@ if __name__ == "__main__":
 
 
 
-
     #train the model
 
     torch.hub._validate_not_a_forked_repo=lambda a,b,c: True  # this is to avoid the error of torch.hub.load
@@ -289,6 +299,8 @@ if __name__ == "__main__":
     small_net_flag = False
 
     if small_net_flag: print("Using the small network, be sure to select the right dataset")
+
+    ret_dict["small_net_flag"] = small_net_flag
     
     fused_resnet_model = fused_resnet(small_net_flag=small_net_flag)
 
@@ -301,9 +313,13 @@ if __name__ == "__main__":
 
     criterion_print= torch.nn.L1Loss()
 
-    optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr=2e-4)
+    lr = 2e-4
 
-    num_epochs = 30
+    optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr = lr)
+
+    ret_dict["lr"] = lr
+
+    num_epochs = 1
 
     start = time.time()
 
@@ -370,32 +386,95 @@ if __name__ == "__main__":
             if actual_test_loss < best_loss:
                 best_loss = actual_test_loss
                 best_model_wts = fused_resnet_model.state_dict()
+                ret_dict["test_loss"] = best_loss
+                ret_dict["train_loss"] = train_loss
+                ret_dict["L1_train_loss"] = L1_train_loss
+                ret_dict["epoch"] = epoch
+
             writer.add_scalars('data/', {'L1_training_loss':L1_train_loss,'L1_test_loss':actual_test_loss}, global_step=epoch)
             writer.flush()
 
-#    actual_test_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
+
+    print("The best test loss is:", best_loss)
+
+
+    # Create a figure and a set of subplots
+    fig, axes = plt.subplots(3, 3, figsize=(20, 10))
+
+    # Plot for the first six samples in the subplots
+    for i, ax in enumerate(axes.flat):
+        plot_label_vs_prediction(ax, sample_idx=i, fused_resnet_model=fused_resnet_model, 
+                                 best_model_wts=best_model_wts, test_dataset=test_dataset,
+                                 mean=mean, std=std, mean_pt=mean_pt, std_pt=std_pt, device=device)
+
+    # Adjust layout to prevent overlap
+    plt.tight_layout()
     
-#    if actual_test_loss < best_loss:
-#        best_loss = actual_test_loss
-#        best_model_wts = fused_resnet_model.state_dict()
+    plt.savefig(os.path.join(repetition_path,"six_samples_label_vs_prediction.png"))
 
-print("The best test loss is:", best_loss)
 
-# Create a figure and a set of subplots
-fig, axes = plt.subplots(3, 3, figsize=(20, 10))
+    writer.add_figure('six_samples_label_vs_prediction', fig, global_step=0)
+    writer.flush()
+    writer.close()
+    # Show the plot
+    plt.show()
 
-# Plot for the first six samples in the subplots
-for i, ax in enumerate(axes.flat):
-    plot_label_vs_prediction(ax, sample_idx=i, fused_resnet_model=fused_resnet_model, best_model_wts=best_model_wts, test_dataset=test_dataset, mean=mean, std=std, mean_pt=mean_pt, std_pt=std_pt, device=device)
+    print("saved the plot")
 
-# Adjust layout to prevent overlap
-plt.tight_layout()
+    return ret_dict
 
-plt.savefig(os.path.join(dir_name,"six_samples_label_vs_prediction.png"))
-writer.add_figure('six_samples_label_vs_prediction', fig, global_step=0)
-writer.flush()
-writer.close()
-# Show the plot
-plt.show()
 
-print("saved the plot")
+if __name__ == "__main__":
+
+    repetitions = 2
+
+    repetitions_dict = {}
+
+    test_path = "results/test_"+time.strftime("%Y%m%d-%H%M%S")+"/"
+
+    if not os.path.exists(test_path):
+            
+        os.makedirs(test_path)
+        print("Created folder: ", test_path)
+
+    for i in range(repetitions):
+
+        repetition_path = test_path+ "repetition_"+str(i)+"/"
+
+        if not os.path.exists(repetition_path):
+            
+            os.makedirs(repetition_path)
+            print("Created folder: ", repetition_path)
+
+        repetitions_dict["repetition_"+str(i)] = run_single_training_and_test(repetition_path)
+
+    
+    repetitions_dict["final_results"] = {}
+
+    #save the mean results of test loss and train loss and L1 train loss in the repetitions_dict["final_results"]
+    
+    repetitions_dict["final_results"]["test_loss"] = 0
+    repetitions_dict["final_results"]["train_loss"] = 0
+    repetitions_dict["final_results"]["L1_train_loss"] = 0
+
+    for i in range(repetitions):
+        repetitions_dict["final_results"]["test_loss"] += repetitions_dict["repetition_"+str(i)]["test_loss"]
+        repetitions_dict["final_results"]["train_loss"] += repetitions_dict["repetition_"+str(i)]["train_loss"]
+        repetitions_dict["final_results"]["L1_train_loss"] += repetitions_dict["repetition_"+str(i)]["L1_train_loss"]
+
+    repetitions_dict["final_results"]["test_loss"] = repetitions_dict["final_results"]["test_loss"]/repetitions
+    repetitions_dict["final_results"]["train_loss"] = repetitions_dict["final_results"]["train_loss"]/repetitions
+    repetitions_dict["final_results"]["L1_train_loss"] = repetitions_dict["final_results"]["L1_train_loss"]/repetitions
+
+
+    #save dict in test path as dict.json
+
+    pd.DataFrame(repetitions_dict).to_json(test_path+"dict.json")
+
+    print("Saved the results in the folder: ", test_path)
+
+    print("Final results: ", repetitions_dict["final_results"])
+
+
+
+    
