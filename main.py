@@ -302,7 +302,9 @@ def run_single_training_and_test(repetition_path):
 
     ret_dict["small_net_flag"] = small_net_flag
     
+
     fused_resnet_model = fused_resnet(small_net_flag=small_net_flag)
+    #fused_resnet_model = fused_resnet_LSTM()
 
     fused_resnet_model.to(device)
     #fused_resnet_model = torch.compile(fused_resnet_model)
@@ -329,20 +331,21 @@ def run_single_training_and_test(repetition_path):
     best_model = None
     best_loss = float('inf')
 
-
+    actual_test_loss,distance_label_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
+    print("Test loss calculated before training starts: ", actual_test_loss)
 
     for epoch in range(num_epochs):
 
         start_time = time.time()
 
-        fused_resnet_model.train()
 
         acc_loss = 0
         train_acc_loss = 0
         label_list = []
 
 
-        actual_test_loss,distance_label_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
+
+        fused_resnet_model.train()
 
         for i, (data, labels) in enumerate(train_dataloader):
 
@@ -379,7 +382,7 @@ def run_single_training_and_test(repetition_path):
 
         if epoch > -1:
             #test evaluated at the beginning of the epoch
-
+            actual_test_loss,distance_label_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
             print("Epoch:",epoch, "    Test L1 Loss in original space: ", actual_test_loss)
             print("Distance per label: ", distance_label_loss)
 
