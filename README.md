@@ -17,6 +17,10 @@ From the repository folder, run:
 
 ``` docker run -it -v $(pwd):/app --gpus all piemmec/copernicus sh -c "cd app && python3 data_to_csv.py && python3 filter_dataset.py" ```
 
+## 1D dataset exploration
+
+``` docker run -it -v $(pwd):/app --gpus all piemmec/copernicus sh -c "cd app && python3 dataset1D.py" ```
+
 ## 2D dataset generation
 
 ``` docker run -v $(pwd):/app --gpus all piemmec/copernicus sh -c "cd app && python3 generate_2D_dataset.py --only_tensors" ```
