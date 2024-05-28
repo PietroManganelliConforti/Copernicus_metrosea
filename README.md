@@ -17,9 +17,15 @@ From the repository folder, run:
 
 ``` docker run -it -v $(pwd):/app --gpus all piemmec/copernicus sh -c "cd app && python3 data_to_csv.py && python3 filter_dataset.py" ```
 
+## 1D dataset exploration
+
+``` docker run -it -v $(pwd):/app --gpus all piemmec/copernicus sh -c "cd app && python3 dataset1D.py" ```
+
 ## 2D dataset generation
 
-``` docker run -v $(pwd):/app --gpus all piemmec/copernicus sh -c "cd app && python3 generate_2D_dataset.py --only_tensors" ```
+``` docker run -v $(pwd):/app --gpus all piemmec/copernicus sh -c "cd app && python3 generate_2D_dataset.py" ```
+
+To save the dataset in an explorable way, and not only the torch tensors, run the last command with the "--save_images" flag for the generate_2D_dataset.py script
 
 ## Training and evaluation
 
