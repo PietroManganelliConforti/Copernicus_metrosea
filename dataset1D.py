@@ -67,13 +67,13 @@ def main():
  
     # Dataset parameters:
 
-    csv_file = "filtered_datasets_copericus_csv/1Ddataset_45.60_13.54/1_45.60_13.54.csv"
+    csv_file = "dataset_copernicus2/1Ddataset_45.60_13.54/1_45.60_13.54.csv"
 
-    window_size = 168
+    window_size = 30
 
-    output_size = 24
+    output_size = 7
 
-    dataset  = Dataset_1D_copernicus(csv_file, window_size, output_size)
+    dataset  = Dataset_1D_copernicus(csv_file, window_size, output_size, step=7)
 
 
     # Explore the dataset

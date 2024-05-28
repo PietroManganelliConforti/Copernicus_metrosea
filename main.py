@@ -173,10 +173,9 @@ def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts,
 
         ax.plot(label, 'o-', label='Label', color='blue')
         ax.plot(prediction, 'x-', label='Prediction', color='red')
-        
-        #print from zero
 
-        ax.set_ylim(20)
+
+        #ax.set_ylim(20)
 
         ax.set_title('Label vs Prediction')
         ax.set_xlabel('Index')
@@ -188,7 +187,7 @@ def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts,
 
 
 
-def run_single_training_and_test(repetition_path):
+def run_single_training_and_test(repetition_path, args):
 
     ret_dict = {}
 
@@ -202,15 +201,6 @@ def run_single_training_and_test(repetition_path):
     ret_dict["tb_dir_name"] = dir_name
 
 
-
-    #parse --get only tensor flag
-    parser = argparse.ArgumentParser(description='run training')
-    parser.add_argument('--batch_size', type=int,default=8, help='batch size for training')
-    parser.add_argument('--batch_size_test', type=int,default=256, help='batch size for training')
-    parser.add_argument('--alpha', type=float, default=0.0, help='alpha for the regularization term of the custom loss')
-    parser.add_argument('--use_cpu', type=bool, default=False, help='use gpu or not')
-    
-    args = parser.parse_args()
 
 
     device = "cpu"
@@ -230,10 +220,22 @@ def run_single_training_and_test(repetition_path):
 
     ret_dict["alpha"] = args.alpha
     
-    augmentations = transforms.Compose([    
-        #transforms.ElasticTransform(alpha=5.0, sigma=0.5) #alpha, sigma sono quelle di default/10
-    ])
+    augmentations = None #default, args.augmentations = 0
     
+    if args.augmentations == "1":
+        augmentations = transforms.Compose([
+            transforms.ElasticTransform(p=0.5, alpha=1, sigma=0.07)])
+    elif args.augmentations == "2":
+        augmentations = transforms.Compose([
+            transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=None, shear=0.1, resample=False, fillcolor=0)])
+    elif args.augmentations == "3":
+        augmentations = transforms.Compose([
+            transforms.RandomResizedCrop(size=(224,224))])
+    elif args.augmentations == "4":
+        augmentations = transforms.Compose([
+            transforms.GaussianNoise(p=0.5, var_limit=(10.0, 50.0))])
+
+
     dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
                                     label_lat = "45.60", label_lon = "13.54",
                                     transforms = augmentations)
@@ -290,19 +292,16 @@ def run_single_training_and_test(repetition_path):
     std = std.to(device)
 
 
-
-
     #train the model
 
     torch.hub._validate_not_a_forked_repo=lambda a,b,c: True  # this is to avoid the error of torch.hub.load
 
-    small_net_flag = False
+    small_net_flag = args.small_net_flag
 
     if small_net_flag: print("Using the small network, be sure to select the right dataset")
 
     ret_dict["small_net_flag"] = small_net_flag
     
-
     fused_resnet_model = fused_resnet(small_net_flag=small_net_flag)
     #fused_resnet_model = fused_resnet_LSTM()
 
@@ -315,13 +314,13 @@ def run_single_training_and_test(repetition_path):
 
     criterion_print= torch.nn.L1Loss()
 
-    lr = 2e-4
+    lr = args.lr
 
     optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr = lr)
 
     ret_dict["lr"] = lr
 
-    num_epochs = 1
+    num_epochs = args.num_epochs
 
     start = time.time()
 
@@ -331,8 +330,7 @@ def run_single_training_and_test(repetition_path):
     best_model = None
     best_loss = float('inf')
 
-    actual_test_loss,distance_label_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
-    print("Test loss calculated before training starts: ", actual_test_loss)
+
 
     for epoch in range(num_epochs):
 
@@ -429,11 +427,31 @@ def run_single_training_and_test(repetition_path):
 
 if __name__ == "__main__":
 
-    repetitions = 2
+    #parse --get only tensor flag
+    parser = argparse.ArgumentParser(description='run training')
+    parser.add_argument('--batch_size', type=int,default=64, help='batch size for training')
+    parser.add_argument('--batch_size_test', type=int,default=256, help='batch size for training')
+    parser.add_argument('--alpha', type=float, default=0.0, help=' custom loss regularization term') #0.0 means no custom loss
+    parser.add_argument('--use_cpu', action='store_true', help='use CPU')
+    parser.add_argument('--lr', type=float, default=2e-4, help='learning rate')
+    parser.add_argument('--num_epochs', type=int, default=50, help='number of epochs')
+    parser.add_argument('--small_net_flag', action='store_true', help='use small network')
+    parser.add_argument('--augmentations', type=int, default=0, help='use augmentations')
+    parser.add_argument('--test_name', type=str, default="test", help='name of the test')
+    
+    args = parser.parse_args()
+
+    repetitions = 5
 
     repetitions_dict = {}
 
-    test_path = "results/test_"+time.strftime("%Y%m%d-%H%M%S")+"/"
+    if args.test_name == "test":
+
+        test_path = "results/test_"+time.strftime("%Y%m%d-%H%M%S")+"/"
+
+    else:
+            
+        test_path = "results/test_"+args.test_name+"/"
 
     if not os.path.exists(test_path):
             
@@ -449,9 +467,12 @@ if __name__ == "__main__":
             os.makedirs(repetition_path)
             print("Created folder: ", repetition_path)
 
-        repetitions_dict["repetition_"+str(i)] = run_single_training_and_test(repetition_path)
+        repetitions_dict["repetition_"+str(i)] = run_single_training_and_test(repetition_path, args)
 
     
+
+
+
     repetitions_dict["final_results"] = {}
 
     #save the mean results of test loss and train loss and L1 train loss in the repetitions_dict["final_results"]
@@ -469,10 +490,13 @@ if __name__ == "__main__":
     repetitions_dict["final_results"]["train_loss"] = repetitions_dict["final_results"]["train_loss"]/repetitions
     repetitions_dict["final_results"]["L1_train_loss"] = repetitions_dict["final_results"]["L1_train_loss"]/repetitions
 
+    repetitions_dict["final_results"]["test_name"] = args.test_name
 
-    #save dict in test path as dict.json
 
-    pd.DataFrame(repetitions_dict).to_json(test_path+"dict.json")
+
+    #save dict in test path as dict.json. print in a readable way
+
+    pd.DataFrame(repetitions_dict).to_json(test_path+"dict.json", indent=4)
 
     print("Saved the results in the folder: ", test_path)
 

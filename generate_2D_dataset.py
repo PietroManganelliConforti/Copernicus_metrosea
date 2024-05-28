@@ -19,7 +19,7 @@ import torch.nn.functional as F
 
 
 
-def generate_cwt_from_1Ddataset(data_path, output_path, save_dataset_as_images=False):
+def generate_cwt_from_1Ddataset(data_path, output_path, size = (224, 224), save_dataset_as_images=False):
 
     wave = 'morl'
 
@@ -126,7 +126,7 @@ def generate_cwt_from_1Ddataset(data_path, output_path, save_dataset_as_images=F
 
                     stacked_tensor_coef = torch.stack([torch.tensor(coef_1), torch.tensor(coef_3), torch.tensor(coef_5)], dim=0)
 
-                    stacked_tensor_coef = F.interpolate(stacked_tensor_coef.unsqueeze(0), size=(32, 32), mode='bilinear', align_corners=False).squeeze(0)
+                    stacked_tensor_coef = F.interpolate(stacked_tensor_coef.unsqueeze(0), size=size, mode='bilinear', align_corners=False).squeeze(0)
 
 
                     print("Stacked tensor shape: ", stacked_tensor_coef.shape)
@@ -221,16 +221,18 @@ if __name__ == "__main__":
     #parse --get only tensor flag
     parser = argparse.ArgumentParser(description='Generate 2D dataset from 1D dataset')
     parser.add_argument('--save_images', action='store_true', help='Save dataset as images and readable files')
+    parser.add_argument('--smaller_tensors', action='store_true', help='Save dataset as tensors')
 
     args = parser.parse_args()
 
     input_path = "dataset_copernicus2/"
     folder_name = "2D_Dataset_copernicus/"
-    
-    folder_name = "2D_Dataset_copernicus_only_tensors_32x32/"
 
-    if args.save_images:
-        folder_name = "2D_Dataset_copernicus_images/"
+    size = (224, 224)
+    
+    if args.smaller_tensors:
+        size = (32, 32)
+
 
     if os.path.exists(folder_name):
         #ask if user wants to delete the folder
@@ -247,7 +249,7 @@ if __name__ == "__main__":
         print("Created folder: ", folder_name)
 
     
-    generate_cwt_from_1Ddataset(data_path = input_path, output_path= folder_name, save_dataset_as_images= args.save_images)
+    generate_cwt_from_1Ddataset(data_path = input_path, output_path= folder_name, size= size, save_dataset_as_images= args.save_images)
 
 
 
