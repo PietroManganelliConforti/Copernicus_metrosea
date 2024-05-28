@@ -441,7 +441,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
 
-    repetitions = 5
+    repetitions = 2
 
     repetitions_dict = {}
 
@@ -472,32 +472,38 @@ if __name__ == "__main__":
     
 
 
-
-    repetitions_dict["final_results"] = {}
+    results_dict = {}
+    results_dict["final_results"] = {}
 
     #save the mean results of test loss and train loss and L1 train loss in the repetitions_dict["final_results"]
     
-    repetitions_dict["final_results"]["test_loss"] = 0
-    repetitions_dict["final_results"]["train_loss"] = 0
-    repetitions_dict["final_results"]["L1_train_loss"] = 0
+    results_dict["final_results"]["mean_test_loss"] = 0
+    results_dict["final_results"]["mean_train_loss"] = 0
+    results_dict["final_results"]["mean_L1_train_loss"] = 0
 
     for i in range(repetitions):
-        repetitions_dict["final_results"]["test_loss"] += repetitions_dict["repetition_"+str(i)]["test_loss"]
-        repetitions_dict["final_results"]["train_loss"] += repetitions_dict["repetition_"+str(i)]["train_loss"]
-        repetitions_dict["final_results"]["L1_train_loss"] += repetitions_dict["repetition_"+str(i)]["L1_train_loss"]
+        results_dict["final_results"]["mean_test_loss"] += repetitions_dict["repetition_"+str(i)]["test_loss"]
+        results_dict["final_results"]["mean_train_loss"] += repetitions_dict["repetition_"+str(i)]["train_loss"]
+        results_dict["final_results"]["mean_L1_train_loss"] += repetitions_dict["repetition_"+str(i)]["L1_train_loss"]
 
-    repetitions_dict["final_results"]["test_loss"] = repetitions_dict["final_results"]["test_loss"]/repetitions
-    repetitions_dict["final_results"]["train_loss"] = repetitions_dict["final_results"]["train_loss"]/repetitions
-    repetitions_dict["final_results"]["L1_train_loss"] = repetitions_dict["final_results"]["L1_train_loss"]/repetitions
+    results_dict["final_results"]["mean_test_loss"] = results_dict["final_results"]["mean_test_loss"]/repetitions
+    results_dict["final_results"]["mean_train_loss"] = results_dict["final_results"]["mean_train_loss"]/repetitions
+    results_dict["final_results"]["mean_L1_train_loss"] = results_dict["final_results"]["mean_L1_train_loss"]/repetitions
 
-    repetitions_dict["final_results"]["test_name"] = args.test_name
+    #add other args
+    args_dict = vars(args)
 
+    args_list = [key for key in args_dict if not key.startswith("__")]
+
+    results_dict["final_results"].update({arg: getattr(args, arg) for arg in args_list})
 
 
     #save dict in test path as dict.json. print in a readable way
 
-    pd.DataFrame(repetitions_dict).to_json(test_path+"dict.json", indent=4)
+    pd.DataFrame(repetitions_dict).to_json(test_path+"run_report.json", indent=4)
 
+    pd.DataFrame(results_dict).to_json(test_path+"results.json", indent=4)
+    
     print("Saved the results in the folder: ", test_path)
 
     print("Final results: ", repetitions_dict["final_results"])
