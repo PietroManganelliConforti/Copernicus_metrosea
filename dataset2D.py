@@ -64,7 +64,9 @@ class merge_2D_dataset(torch.utils.data.Dataset):
         output_tensor = torch.stack(list_of_inputs)
 
         if self.transforms:
-            output_tensor = self.transforms(output_tensor)
+            
+            for i in range(output_tensor.shape[0]):
+                output_tensor[i] = self.transforms(output_tensor[i])
 
         return output_tensor, labels
 

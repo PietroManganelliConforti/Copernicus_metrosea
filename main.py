@@ -9,8 +9,8 @@ import time
 import matplotlib.pyplot as plt
 #torch.set_float32_matmul_precision("high")
 from torch.utils.data import DataLoader, Subset
-from torchvision import transforms
-import torch.nn.functional as F
+from augmentations import get_augmentation
+import torch.nn.functional as F  
 import torch.nn as nn
 import argparse
 import random
@@ -219,21 +219,8 @@ def run_single_training_and_test(repetition_path, args):
 
 
     ret_dict["alpha"] = args.alpha
-    
-    augmentations = None #default, args.augmentations = 0
-    
-    if args.augmentations == "1":
-        augmentations = transforms.Compose([
-            transforms.ElasticTransform(p=0.5, alpha=1, sigma=0.07)])
-    elif args.augmentations == "2":
-        augmentations = transforms.Compose([
-            transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=None, shear=0.1, resample=False, fillcolor=0)])
-    elif args.augmentations == "3":
-        augmentations = transforms.Compose([
-            transforms.RandomResizedCrop(size=(224,224))])
-    elif args.augmentations == "4":
-        augmentations = transforms.Compose([
-            transforms.GaussianNoise(p=0.5, var_limit=(10.0, 50.0))])
+
+    augmentations = get_augmentation(args.augmentations)
 
 
     dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
@@ -388,6 +375,7 @@ def run_single_training_and_test(repetition_path, args):
                 best_loss = actual_test_loss
                 best_model_wts = fused_resnet_model.state_dict()
                 ret_dict["test_loss"] = best_loss
+                ret_dict["mean_distance"] = distance_label_loss.tolist()
                 ret_dict["train_loss"] = train_loss
                 ret_dict["L1_train_loss"] = L1_train_loss
                 ret_dict["epoch"] = epoch
@@ -411,10 +399,10 @@ def run_single_training_and_test(repetition_path, args):
     # Adjust layout to prevent overlap
     plt.tight_layout()
     
-    plt.savefig(os.path.join(repetition_path,"six_samples_label_vs_prediction.png"))
+    plt.savefig(os.path.join(repetition_path,"label_vs_prediction_plot.png"))
 
 
-    writer.add_figure('six_samples_label_vs_prediction', fig, global_step=0)
+    writer.add_figure('label_vs_prediction_plot', fig, global_step=0)
     writer.flush()
     writer.close()
     # Show the plot
@@ -480,15 +468,20 @@ if __name__ == "__main__":
     results_dict["final_results"]["mean_test_loss"] = 0
     results_dict["final_results"]["mean_train_loss"] = 0
     results_dict["final_results"]["mean_L1_train_loss"] = 0
+    results_dict["final_results"]["mean_distance"] = 0
 
     for i in range(repetitions):
         results_dict["final_results"]["mean_test_loss"] += repetitions_dict["repetition_"+str(i)]["test_loss"]
         results_dict["final_results"]["mean_train_loss"] += repetitions_dict["repetition_"+str(i)]["train_loss"]
         results_dict["final_results"]["mean_L1_train_loss"] += repetitions_dict["repetition_"+str(i)]["L1_train_loss"]
+        results_dict["final_results"]["mean_distance"] = np.add(results_dict["final_results"]["mean_distance"], repetitions_dict["repetition_"+str(i)]["mean_distance"])
 
     results_dict["final_results"]["mean_test_loss"] = results_dict["final_results"]["mean_test_loss"]/repetitions
     results_dict["final_results"]["mean_train_loss"] = results_dict["final_results"]["mean_train_loss"]/repetitions
     results_dict["final_results"]["mean_L1_train_loss"] = results_dict["final_results"]["mean_L1_train_loss"]/repetitions
+    results_dict["final_results"]["mean_distance"] = results_dict["final_results"]["mean_distance"]/repetitions
+
+
 
     #add other args
     args_dict = vars(args)
@@ -496,7 +489,6 @@ if __name__ == "__main__":
     args_list = [key for key in args_dict if not key.startswith("__")]
 
     results_dict["final_results"].update({arg: getattr(args, arg) for arg in args_list})
-
 
     #save dict in test path as dict.json. print in a readable way
 
@@ -506,7 +498,7 @@ if __name__ == "__main__":
     
     print("Saved the results in the folder: ", test_path)
 
-    print("Final results: ", repetitions_dict["final_results"])
+    #print("Final results: ", repetitions_dict["final_results"])
 
 
 
