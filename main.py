@@ -92,7 +92,7 @@ def run_single_training_and_test(repetition_path, args):
 
 
     ret_dict["loss_alpha"] = args.loss_alpha
-    ret_dict["emam_alpha"] = args.emam_alpha
+    ret_dict["ema_alpha"] = args.ema_alpha
 
     augmentations = get_augmentation(args.augmentations)
 
@@ -194,7 +194,7 @@ def run_single_training_and_test(repetition_path, args):
     best_loss_ema = float('inf')
 
     #additional code for SWA
-    ema_model = EMAModel(fused_resnet_model, alpha=args.emam_alpha,device=device)
+    ema_model = emaodel(fused_resnet_model, alpha=args.ema_alpha,device=device)
     #swa_model = torch.optim.swa_utils.AveragedModel(fused_resnet_model).to(device)
     #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.num_epochs)
     #swa_start = 2
@@ -310,7 +310,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size_test', type=int,default=256, help='batch size for training')
     #parser.add_argument('--alpha', type=float, default=0.0, help=' custom loss regularization term') #0.0 means no custom loss
     parser.add_argument('--loss_alpha', type=float, default=0.0, help=' custom loss regularization term') #0.0 means no custom loss
-    parser.add_argument('--emam_alpha', type=float, default=0.9, help=' exponential moving average alpha')
+    parser.add_argument('--ema_alpha', type=float, default=0.9, help=' exponential moving average alpha')
     parser.add_argument('--use_cpu', action='store_true', help='use CPU')
     parser.add_argument('--lr', type=float, default=2e-4, help='learning rate')
     parser.add_argument('--num_epochs', type=int, default=50, help='number of epochs')
