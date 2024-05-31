@@ -91,13 +91,14 @@ def run_single_training_and_test(repetition_path, args):
     print("Device: ", device)
 
 
-    ret_dict["alpha"] = args.alpha
+    ret_dict["loss_alpha"] = args.loss_alpha
+    ret_dict["emam_alpha"] = args.emam_alpha
 
     augmentations = get_augmentation(args.augmentations)
 
 
     dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
-                                    label_lat = "45.60", label_lon = "13.54",
+                                    pred_label_lat = "45.60", pred_label_lon = "13.54",
                                     transforms = augmentations)
 
     print("dataset: ",  dataset_2D[0][0].shape, dataset_2D[0][1].shape)
@@ -169,7 +170,7 @@ def run_single_training_and_test(repetition_path, args):
     #fused_resnet_model = torch.compile(fused_resnet_model)
 
     criterion = nn.MSELoss()
-    if args.alpha > 0.0:
+    if args.loss_alpha != 0.0:
         criterion = CustomLoss(alpha=args.loss_alpha)
 
     criterion_print= torch.nn.L1Loss()

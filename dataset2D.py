@@ -301,7 +301,7 @@ if __name__ == "__main__":
         #print merged dataset
 
         dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
-                                      label_lat = "45.60", label_lon = "13.54")
+                                      pred_label_lat = "45.60", pred_label_lon = "13.54")
 
 
         print("dataset: ",  dataset_2D[0][0].shape, dataset_2D[0][1].shape)
