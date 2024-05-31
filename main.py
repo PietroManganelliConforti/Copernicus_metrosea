@@ -15,58 +15,13 @@ import torch.nn as nn
 import argparse
 import random
 import warnings
+import copy
+from utils import *
+
 warnings.filterwarnings("ignore")
 
 from torch.utils.tensorboard import SummaryWriter
 
-
-
-class CustomLoss(nn.Module):
-    def __init__(self, alpha=0.0):
-
-        super(CustomLoss, self).__init__()
-
-        self.alpha = nn.Parameter(torch.tensor(alpha))  # Regularization strength
-        
-    def forward(self, predictions, targets):
-        """
-        Forward pass of the loss function.
-            
-        Returns:
-            loss (torch.Tensor): Combined loss value.
-        """
-        # Compute MSE loss
-        mse_loss = nn.functional.mse_loss(predictions, targets)
-        
-        # Compute regularization term (Total Variation Regularization)
-        tv_loss = self.total_variation_regularization(predictions)
-        
-        # Combine MSE loss with regularization term
-        total_loss = mse_loss + self.alpha * tv_loss
-        
-        return total_loss
-    
-    def total_variation_regularization(self, predictions):
-        """
-        Computes the Total Variation regularization term.
-        """
-        #the value has to have the gradient
-        
-        tv_loss = torch.tensor(0.0, requires_grad=True).to(predictions.device)
-
-        torch.tensor(0.0, requires_grad=True).to(predictions.device)
-
-        # Compute the total variation for each channel
-        for i in range(predictions.size(1) - 1):  # Loop until the second last item
-            # Compute the absolute difference between adjacent values along the sequence dimension
-            diff = torch.diff(predictions[:, i + 1] - predictions[:, i])
-            diff = abs(diff)
-            # Sum over the output dimension and add to the regularization loss, keep trak the gradient
-            diff = torch.sum(diff)
-
-            tv_loss = tv_loss + diff
-
-        return tv_loss
 
 
 
@@ -85,16 +40,8 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_p
 
             data = data.to(device)
             data = (data - mean)/std
-            # batch, seq, channels, w, h = data.shape
-
-            # data = data.view(-1, data.shape[2],data.shape[3],data.shape[4])
-
-            # data = F.interpolate(data, size=(224,224),mode='bilinear',align_corners=False)
-            # data = data.view(batch,seq,channels,224,224)
-
 
             labels = labels.to(device)
-            labels=labels # ((labels-mean_pt)/std_pt).float() #normalizing labels. If I want to get actual error, need to disable this and enable the other line
 
             outputs = model(data) *std_pt+mean_pt
 
@@ -109,80 +56,6 @@ def test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_p
             ret_value2 = distance_per_label/len(test_dataloader)
 
     return ret_value1, ret_value2
-
-
-
-
-def get_mean_and_std(dataset_2D, monodim = True):
-    
-    mean =0
-    std = 0
-
-    if not monodim:
-        mean = torch.zeros((16, 3))
-        std = torch.zeros((16, 3))
-
-
-    for images,_ in dataset_2D:
-
-        if monodim:
-            mean += images.mean()  
-            std += images.std()   
-        else: 
-            mean += images.mean(dim=[2, 3])  
-            std += images.std(dim=[2, 3])   
-
-
-
-    # Divide by the total number of images to get the mean and std for the entire dataset
-    mean /= len(dataset_2D)
-    std /= len(dataset_2D)
-
-    if not monodim:
-        mean = mean.unsqueeze(-1).unsqueeze(-1)
-        std = std.unsqueeze(-1).unsqueeze(-1)
-        print("mean and std shape and mean values: ", mean.shape, mean.mean(), std.shape, std.mean())
-    else:
-        print("mean and std: ", mean, std)
-    
-    return mean, std
-
-
-
-def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts, test_dataset, mean, std, mean_pt, std_pt, device):
-    
-    with torch.no_grad():
-        input_data, label = test_dataset[sample_idx]
-        input_data, label = input_data.to(device), label.to(device)
-
-        input_data = input_data.unsqueeze(0)  # Add batch dimension if needed
-        input_data = ((input_data - mean) / std).float()
-        batch, seq, channels, w, h = input_data.shape
-
-        # input_data = input_data.view(-1, input_data.shape[2],input_data.shape[3],input_data.shape[4])
-        # input_data = F.interpolate(input_data, size=(224,224),mode='bilinear',align_corners=False)
-        # input_data = input_data.view(batch,seq,channels,224,224)
-
-        fused_resnet_model.load_state_dict(best_model_wts)
-        fused_resnet_model.eval()
-        prediction = fused_resnet_model(input_data)
-        prediction = (prediction * std_pt + mean_pt).squeeze(0)  # Plotting in the original space
-
-        label = label.cpu().numpy()
-        prediction = prediction.cpu().numpy()
-
-        ax.plot(label, 'o-', label='Label', color='blue')
-        ax.plot(prediction, 'x-', label='Prediction', color='red')
-
-
-        #ax.set_ylim(20)
-
-        ax.set_title('Label vs Prediction')
-        ax.set_xlabel('Index')
-        ax.set_ylabel('Value')
-        ax.legend()
-
-
 
 
 
@@ -313,11 +186,18 @@ def run_single_training_and_test(repetition_path, args):
 
     print("Training the model...")
 
-    print("Start time: ", time.strftime("%H:%M:%S", time.gmtime(start)))
+    #print("Start time: ", time.strftime("%H:%M:%S", time.gmtime(start)))
     best_model = None
     best_loss = float('inf')
+    best_model_ema = None
+    best_loss_ema = float('inf')
 
-
+    #additional code for SWA
+    ema_model = EMAModel(fused_resnet_model, alpha=0.99,device=device)
+    #swa_model = torch.optim.swa_utils.AveragedModel(fused_resnet_model).to(device)
+    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.num_epochs)
+    #swa_start = 2
+    #swa_scheduler = torch.optim.swa_utils.SWALR(optimizer, swa_lr=0.05)
 
     for epoch in range(num_epochs):
 
@@ -331,7 +211,6 @@ def run_single_training_and_test(repetition_path, args):
 
 
         fused_resnet_model.train()
-
         for i, (data, labels) in enumerate(train_dataloader):
 
             data = data.to(device)
@@ -342,23 +221,18 @@ def run_single_training_and_test(repetition_path, args):
 
             batch, seq, channels, w, h = data.shape
 
-            # data = data.view(-1, data.shape[2],data.shape[3],data.shape[4])
-            # data = F.interpolate(data, size=(224,224),mode='bilinear',align_corners=False)
-            # data = data.view(batch,seq,channels,224,224)
-
             optimizer.zero_grad()
             outputs = fused_resnet_model(data)
 
             loss = criterion(outputs, labels)
             loss_unorm = criterion_print(outputs*std_pt+mean_pt, labels*std_pt+mean_pt)
-            #chunks = list(torch.chunk(labels, labels.size(0), dim=0))
-            #label_list.extend(chunks)
             loss.backward()
 
             optimizer.step()
+            ema_model.update_ema_weights()
             acc_loss +=loss_unorm 
             train_acc_loss += loss
-            
+
         L1_train_loss=(torch.mean(acc_loss).detach().cpu().numpy()/len(train_dataloader))
         train_loss=(torch.mean(train_acc_loss).detach().cpu().numpy()/len(train_dataloader))
         epoch_elapsed_time = time.time() - start_time
@@ -369,7 +243,11 @@ def run_single_training_and_test(repetition_path, args):
             #test evaluated at the beginning of the epoch
             actual_test_loss,distance_label_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
             print("Epoch:",epoch, "    Test L1 Loss in original space: ", actual_test_loss)
-            print("Distance per label: ", distance_label_loss)
+            #print("Distance per label: ", distance_label_loss)
+            ## evaluating EMA model
+            ema_model.eval()
+            actual_test_loss_ema,distance_label_loss_ema=test(ema_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
+            print("Epoch:",epoch, "    EMA     Loss in original space: ", actual_test_loss_ema)
 
             if actual_test_loss < best_loss:
                 best_loss = actual_test_loss
@@ -380,12 +258,22 @@ def run_single_training_and_test(repetition_path, args):
                 ret_dict["L1_train_loss"] = L1_train_loss
                 ret_dict["epoch"] = epoch
 
-            writer.add_scalars('data/', {'L1_training_loss':L1_train_loss,'L1_test_loss':actual_test_loss}, global_step=epoch)
+            if actual_test_loss_ema < best_loss_ema:
+                best_loss_ema = actual_test_loss_ema
+                best_model_wts_ema = ema_model.state_dict()
+                ret_dict["test_loss_ema"] = best_loss_ema
+                ret_dict["mean_distance_ema"] = distance_label_loss_ema.tolist()
+                ret_dict["epoch_ema"] = epoch
+
+            writer.add_scalars('data/', {'L1_training_loss':L1_train_loss,'L1_test_loss':actual_test_loss,'EMA_test_loss':actual_test_loss_ema}, global_step=epoch)
             writer.flush()
 
-
+    ema_model.load_state_dict(best_model_wts_ema)
+#    ema_model.update_bn_statistics(train_dataloader)
+#    actual_test_loss_ema_BN,distance_label_loss_ema=test(ema_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
     print("The best test loss is:", best_loss)
-
+    print("The best EMA  loss is:", best_loss_ema)
+#    print("Corrected EMA loss is:", actual_test_loss_ema_BN)
 
     # Create a figure and a set of subplots
     fig, axes = plt.subplots(3, 3, figsize=(20, 10))
