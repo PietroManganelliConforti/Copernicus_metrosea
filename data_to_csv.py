@@ -1,4 +1,3 @@
-from IPython.display import IFrame
 import matplotlib.pyplot as plt
 import getpass
 import xarray as xr
