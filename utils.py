@@ -23,22 +23,25 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 class EMAModel(nn.Module):
-    def __init__(self, model, alpha=0.99, device='cpu'):
+    def __init__(self, model, alpha=0.99, device='cpu',bn=False):
         super(EMAModel, self).__init__()
         self.model = model
         self.alpha = alpha
         self.device = device
         self.model.to(self.device)
         self.ema_weights = {name: param.clone().detach().to(self.device) for name, param in model.named_parameters() if param.requires_grad}
-        self.ema_buffers = {name: buf.clone().detach().to(self.device) for name, buf in model.named_buffers()}
+        self.bn = bn
+        if self.bn:
+            self.ema_buffers = {name: buf.clone().detach().to(self.device) for name, buf in model.named_buffers()}
 
     def update_ema_weights(self):
         for name, param in self.model.named_parameters():
             if param.requires_grad:
                 self.ema_weights[name].mul_(self.alpha).add_(param.data.to(self.device), alpha=1 - self.alpha)
-        for name, buf in self.model.named_buffers():
-            if "running_mean" in name or "running_var" in name:
-                self.ema_buffers[name].mul_(self.alpha).add_(buf.to(self.device), alpha=1 - self.alpha)
+        if self.bn:
+            for name, buf in self.model.named_buffers():
+                if "running_mean" in name or "running_var" in name:
+                    self.ema_buffers[name].mul_(self.alpha).add_(buf.to(self.device), alpha=1 - self.alpha)
 
     def forward(self, inputs):
         # Create a copy of the model to apply EMA weights
@@ -49,9 +52,10 @@ class EMAModel(nn.Module):
         for name, param in ema_model.named_parameters():
             if param.requires_grad:
                 param.data.copy_(self.ema_weights[name])
-        for name, buf in ema_model.named_buffers():
-            if "running_mean" in name or "running_var" in name:
-                buf.copy_(self.ema_buffers[name])
+        if self.bn:
+            for name, buf in ema_model.named_buffers():
+                if "running_mean" in name or "running_var" in name:
+                    buf.copy_(self.ema_buffers[name])
 
         # Perform inference
         ema_model.eval()
