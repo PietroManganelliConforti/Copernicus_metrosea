@@ -77,24 +77,6 @@ class merge_1D_dataset(torch.utils.data.Dataset):
 
                     self.label_dataset_idx = idx
 
-                    print("Label dataset idx: ", self.label_dataset_idx, "File: ", file)
-
-                    print(self.dataset_1D[self.label_dataset_idx][0][1])
-                       
-
-
-        print("N of csv files: ", len(self.dataset_1D))
-
-
-
-
-            
-    
-
-            
-
-        print("N of loaded 1D datasets: ", len(self.dataset_1D))
-
 
         
     def __len__(self):
