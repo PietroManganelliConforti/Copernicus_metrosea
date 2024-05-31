@@ -3,7 +3,9 @@ import cv2
 import torch
 import numpy as np
 import pandas as pd
-from dataset2D import Dataset_2D_copernicus, merge_2D_dataset, fused_resnet, fused_resnet_LSTM
+from dataset2D import Dataset_2D_copernicus, merge_2D_dataset,  fused_resnet, fused_resnet_LSTM
+from dataset1D import merge_1D_dataset, LSTMSequencePredictor
+
 torch.backends.cudnn.benchmark = True
 import time
 import matplotlib.pyplot as plt
@@ -96,13 +98,16 @@ def run_single_training_and_test(repetition_path, args):
 
     augmentations = get_augmentation(args.augmentations)
 
-
-    dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
+    if args.dim == "2D":
+        dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
                                     pred_label_lat = "45.60", pred_label_lon = "13.54",
                                     transforms = augmentations)
+    elif args.dim == "1D":
+        dataset_2D = merge_1D_dataset(folder_path = "dataset_copernicus2/", pred_label_lat = "45.60", pred_label_lon = "13.54", depth = "1")
+    else:
+        raise Exception("Sorry, dim must be 2D or 1D")
 
     print("dataset: ",  dataset_2D[0][0].shape, dataset_2D[0][1].shape)
-
 
 
 
@@ -162,12 +167,14 @@ def run_single_training_and_test(repetition_path, args):
     if small_net_flag: print("Using the small network, be sure to select the right dataset")
 
     ret_dict["small_net_flag"] = small_net_flag
-    
-    fused_resnet_model = fused_resnet(small_net_flag=small_net_flag)
-    #fused_resnet_model = fused_resnet_LSTM()
+    if args.dim == "2D":
+        model = fused_resnet(small_net_flag=small_net_flag) 
+    else:
+        model = LSTMSequencePredictor(input_dim=48, hidden_dim=60,output_length=7, num_layers=2).to(device)
+    #model = fused_resnet_LSTM()
 
-    fused_resnet_model.to(device)
-    #fused_resnet_model = torch.compile(fused_resnet_model)
+    model.to(device)
+    #model = torch.compile(model)
 
     criterion = nn.MSELoss()
     if args.loss_alpha != 0.0:
@@ -177,7 +184,7 @@ def run_single_training_and_test(repetition_path, args):
 
     lr = args.lr
 
-    optimizer = torch.optim.Adam(fused_resnet_model.parameters(), lr = lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr = lr)
 
     ret_dict["lr"] = lr
 
@@ -194,8 +201,8 @@ def run_single_training_and_test(repetition_path, args):
     best_loss_ema = float('inf')
 
     #additional code for SWA
-    ema_model = emaodel(fused_resnet_model, alpha=args.ema_alpha,device=device)
-    #swa_model = torch.optim.swa_utils.AveragedModel(fused_resnet_model).to(device)
+    ema_model = EMAModel(model, alpha=args.ema_alpha,device=device)
+    #swa_model = torch.optim.swa_utils.AveragedModel(model).to(device)
     #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.num_epochs)
     #swa_start = 2
     #swa_scheduler = torch.optim.swa_utils.SWALR(optimizer, swa_lr=0.05)
@@ -211,19 +218,19 @@ def run_single_training_and_test(repetition_path, args):
 
 
 
-        fused_resnet_model.train()
+        model.train()
         for i, (data, labels) in enumerate(train_dataloader):
 
             data = data.to(device)
-
             data = (data - mean)/std
             labels = labels.to(device)
             labels=((labels-mean_pt)/std_pt).float()
 
-            batch, seq, channels, w, h = data.shape
-
+            #batch, seq, channels, w, h = data.shape
+            batch = data.shape[0]
+            seq = data.shape[1]
             optimizer.zero_grad()
-            outputs = fused_resnet_model(data)
+            outputs = model(data)
 
             loss = criterion(outputs, labels)
             loss_unorm = criterion_print(outputs*std_pt+mean_pt, labels*std_pt+mean_pt)
@@ -242,7 +249,7 @@ def run_single_training_and_test(repetition_path, args):
 
         if epoch > -1:
             #test evaluated at the beginning of the epoch
-            actual_test_loss,distance_label_loss=test(fused_resnet_model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
+            actual_test_loss,distance_label_loss=test(model, test_dataloader, mean, std, mean_pt, std_pt, device, criterion_print,batch_size_test)
             print("Epoch:",epoch, "    Test L1 Loss in original space: ", actual_test_loss)
             #print("Distance per label: ", distance_label_loss)
             ## evaluating EMA model
@@ -252,7 +259,7 @@ def run_single_training_and_test(repetition_path, args):
 
             if actual_test_loss < best_loss:
                 best_loss = actual_test_loss
-                best_model_wts = fused_resnet_model.state_dict()
+                best_model_wts = model.state_dict()
                 ret_dict["test_loss"] = best_loss
                 ret_dict["mean_distance"] = distance_label_loss.tolist()
                 ret_dict["train_loss"] = train_loss
@@ -281,7 +288,7 @@ def run_single_training_and_test(repetition_path, args):
 
     # Plot for the first six samples in the subplots
     for i, ax in enumerate(axes.flat):
-        plot_label_vs_prediction(ax, sample_idx=i, fused_resnet_model=fused_resnet_model, 
+        plot_label_vs_prediction(ax, sample_idx=i, model=model, 
                                  best_model_wts=best_model_wts, test_dataset=test_dataset,
                                  mean=mean, std=std, mean_pt=mean_pt, std_pt=std_pt, device=device)
 
@@ -317,6 +324,7 @@ if __name__ == "__main__":
     parser.add_argument('--small_net_flag', action='store_true', help='use small network')
     parser.add_argument('--augmentations', type=int, default=0, help='use augmentations')
     parser.add_argument('--test_name', type=str, default="test", help='name of the test')
+    parser.add_argument('--dim', type=str, default="2D", help='name of the test')
     
     args = parser.parse_args()
 

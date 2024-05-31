@@ -125,7 +125,6 @@ def get_mean_and_std(dataset_2D, monodim = True):
         mean = torch.zeros((16, 3))
         std = torch.zeros((16, 3))
 
-
     for images,_ in dataset_2D:
 
         if monodim:
@@ -152,7 +151,7 @@ def get_mean_and_std(dataset_2D, monodim = True):
 
 
 
-def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts, test_dataset, mean, std, mean_pt, std_pt, device):
+def plot_label_vs_prediction(ax, sample_idx, model, best_model_wts, test_dataset, mean, std, mean_pt, std_pt, device):
     
     with torch.no_grad():
         input_data, label = test_dataset[sample_idx]
@@ -160,15 +159,15 @@ def plot_label_vs_prediction(ax, sample_idx, fused_resnet_model, best_model_wts,
 
         input_data = input_data.unsqueeze(0)  # Add batch dimension if needed
         input_data = ((input_data - mean) / std).float()
-        batch, seq, channels, w, h = input_data.shape
-
+        batch = input_data.shape[0]
+        seq = input_data.shape[1]
         # input_data = input_data.view(-1, input_data.shape[2],input_data.shape[3],input_data.shape[4])
         # input_data = F.interpolate(input_data, size=(224,224),mode='bilinear',align_corners=False)
         # input_data = input_data.view(batch,seq,channels,224,224)
 
-        fused_resnet_model.load_state_dict(best_model_wts)
-        fused_resnet_model.eval()
-        prediction = fused_resnet_model(input_data)
+        model.load_state_dict(best_model_wts)
+        model.eval()
+        prediction = model(input_data)
         prediction = (prediction * std_pt + mean_pt).squeeze(0)  # Plotting in the original space
 
         label = label.cpu().numpy()

@@ -3,6 +3,38 @@ import cv2
 import torch
 import numpy as np
 import pandas as pd
+import torch.nn as nn
+
+class LSTMSequencePredictor(nn.Module):
+    def __init__(self, input_dim, hidden_dim,  output_length, num_layers=1):
+        super(LSTMSequencePredictor, self).__init__()
+        
+        self.output_length = output_length
+        
+        # Initialize the LSTM layer
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
+        
+        # Initialize the fully connected layer
+        self.fc = nn.Linear(hidden_dim, output_length)
+    
+    def forward(self, x):
+        # Set initial hidden and cell states to zeros
+        h0 = torch.zeros(self.lstm.num_layers, x.size(0), self.lstm.hidden_size).to(x.device)
+        c0 = torch.zeros(self.lstm.num_layers, x.size(0), self.lstm.hidden_size).to(x.device)
+        
+        # Forward propagate LSTM
+        out, _ = self.lstm(x, (h0, c0))
+        
+        # We only need the output of the last time step
+        out = out[:, -1, :]
+        
+        # Flatten the output from the LSTM layer (batch_size, num_signals * hidden_dim)
+        out = out.reshape(out.size(0), -1)
+        
+        # Pass through the fully connected layer to get the final output of length 7
+        out = self.fc(out)
+        
+        return out
 
 class zipDatasets(torch.utils.data.Dataset):
     def __init__(self, dataset1, dataset2, dataset3):
@@ -104,7 +136,7 @@ class merge_1D_dataset(torch.utils.data.Dataset):
             
             for i in range(output_tensor.shape[0]):
                 output_tensor[i] = self.transforms(output_tensor[i])
-
+        output_tensor=torch.swapaxes(output_tensor,0,1) #LSTM needs sequence first,then input size
         return output_tensor, labels
 
 
