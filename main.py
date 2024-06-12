@@ -96,12 +96,14 @@ def run_single_training_and_test(repetition_path, args):
     ret_dict["loss_alpha"] = args.loss_alpha
     ret_dict["ema_alpha"] = args.ema_alpha
 
-    augmentations = get_augmentation(args.augmentations)
+    augmentation = get_augmentation(str(args.augmentations))
+
+    print("Augmentation: ", args.augmentations, augmentation)
 
     if args.dim == "2D":
         dataset_2D = merge_2D_dataset(folder_path = args.input_dataset_path,
                                     pred_label_lat = "45.60", pred_label_lon = "13.54",
-                                    transforms = augmentations)
+                                    transforms = augmentation)
     elif args.dim == "1D":
         dataset_2D = merge_1D_dataset(folder_path = "dataset_copernicus2/", pred_label_lat = "45.60", pred_label_lon = "13.54", depth = "1")
     else:
