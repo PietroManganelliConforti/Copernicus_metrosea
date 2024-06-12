@@ -24,7 +24,7 @@ def get_augmentation(augmentations_test_number):
     
     elif augmentations_test_number ==  "4":
         augmentations = transforms.Compose([
-            lambda x: x + torch.normal(0, 0.1, size=x.shape)
+            lambda x: x + torch.normal(0, 0.1, size=x.shape).to(x.device)
         ])
      
     elif augmentations_test_number == "5":
