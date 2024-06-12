@@ -19,7 +19,7 @@ import torch.nn.functional as F
 
 
 
-def generate_cwt_from_1Ddataset(data_path, output_path, size = (224, 224), save_dataset_as_images=False):
+def generate_cwt_from_1Ddataset(data_path, output_path, size = (224, 224), save_dataset_as_images=False, scales = 30):
 
     wave = 'morl'
 
@@ -27,7 +27,7 @@ def generate_cwt_from_1Ddataset(data_path, output_path, size = (224, 224), save_
     output_size = 7
     step = 7
 
-    scales = np.arange(1,window_size+1)
+    scales = np.arange(1,scales+1)
 
 
     print("Generating CWT from 1D dataset from: ", data_path)
@@ -222,11 +222,23 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate 2D dataset from 1D dataset')
     parser.add_argument('--save_images', action='store_true', help='Save dataset as images and readable files')
     parser.add_argument('--smaller_tensors', action='store_true', help='Save dataset as tensors')
+    parser.add_argument('--scales', type=int, default=30, help='Number of scales for CWT')
 
     args = parser.parse_args()
 
     input_path = "dataset_copernicus2/"
-    folder_name = "2D_Dataset_copernicus/"
+
+    folder_name = "2D_Dataset_copernicus"
+
+    if args.save_images:
+        folder_name = folder_name + "images"
+    
+
+    if args.scales != 30:
+        folder_name = folder_name + "_scales"+str(args.scales)
+
+
+    folder_name += "/"
 
     size = (224, 224)
     
@@ -249,7 +261,7 @@ if __name__ == "__main__":
         print("Created folder: ", folder_name)
 
     
-    generate_cwt_from_1Ddataset(data_path = input_path, output_path= folder_name, size= size, save_dataset_as_images= args.save_images)
+    generate_cwt_from_1Ddataset(data_path = input_path, output_path= folder_name, size= size, save_dataset_as_images= args.save_images , scales = args.scales)
 
 
 

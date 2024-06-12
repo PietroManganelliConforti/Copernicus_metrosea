@@ -99,7 +99,7 @@ def run_single_training_and_test(repetition_path, args):
     augmentations = get_augmentation(args.augmentations)
 
     if args.dim == "2D":
-        dataset_2D = merge_2D_dataset(folder_path = "2D_Dataset_copernicus_only_tensors/",
+        dataset_2D = merge_2D_dataset(folder_path = args.input_dataset_path,
                                     pred_label_lat = "45.60", pred_label_lon = "13.54",
                                     transforms = augmentations)
     elif args.dim == "1D":
@@ -324,7 +324,8 @@ if __name__ == "__main__":
     parser.add_argument('--small_net_flag', action='store_true', help='use small network')
     parser.add_argument('--augmentations', type=int, default=0, help='use augmentations')
     parser.add_argument('--test_name', type=str, default="test", help='name of the test')
-    parser.add_argument('--dim', type=str, default="2D", help='name of the test')
+    parser.add_argument('--dim', type=str, default="2D", help='DIM 1D or 2D')
+    parser.add_argument('--input_dataset_path', type=str, default="2D_Dataset_copernicus_only_tensors/", help='path of the dataset')
     
     args = parser.parse_args()
 
