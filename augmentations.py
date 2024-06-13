@@ -11,7 +11,7 @@ def get_augmentation(augmentations_test_number):
     elif augmentations_test_number == "1":
         
         augmentations = transforms.Compose([
-            v2.GaussianBlur(kernel_size=(4,4))
+            v2.GaussianBlur(kernel_size=(5,5))
         ])
 
     elif augmentations_test_number == "2": #0.3980821988
