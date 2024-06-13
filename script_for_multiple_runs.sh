@@ -14,51 +14,37 @@ run_mains()
     
 # python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 0 --test_name baseline_oggi
 
+python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 1 --test_name aug_1_2
 
-python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.99 --lr 1e-4 --num_epochs 50 --augmentations 0 --test_name new_ema99
-
-python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 1 --test_name aug_1
-
-python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 2 --test_name aug_2
-
-python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 3 --test_name aug_3
+python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 3 --test_name aug_3_2
 
 python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 4 --test_name aug_4
-
-python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 5 --test_name aug_5
-
-python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 6 --test_name aug_6
-
-python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 7 --test_name aug_7
 
 python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 8 --test_name aug_8
 
 python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 9 --test_name aug_9
 
+python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.5 --lr 1e-4 --num_epochs 50 --augmentations 0 --test_name ema05
+
+python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 2 --test_name aug_2_2
+
+python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 5 --test_name aug_5_2
+
+python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 6 --test_name aug_6
+
+python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 7 --test_name aug_7
+
 
 # python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.02 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 0 --test_name test_loss_alpha_0.02_2try
 
 #python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-3 --num_epochs 50 --augmentations 0 --test_name lr_1e-3
-#
-#python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 1 --test_name test_augmentations1
-#
-#python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 2 --test_name test_augmentations2
-#
-#python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 3 --test_name test_augmentations3
-#
-#python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 4 --test_name test_augmentations4
-#
-#python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 5 --test_name test_augmentations5
-#
-#python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 6 --test_name test_augmentations6
-#
-#python3 main.py --batch_size 32 --batch_size_test 256 --loss_alpha 0.0 --ema_alpha 0.0 --lr 1e-4 --num_epochs 50 --augmentations 7 --test_name test_augmentations7
+
 
 }
 
 
-
-nohup run_mains > /dev/null 2>&1 &
+#nohup script_for_multiple_runs > /dev/null 2>&1 &
+run_mains 
 
 
 

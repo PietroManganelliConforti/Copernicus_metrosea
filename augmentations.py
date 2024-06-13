@@ -1,6 +1,6 @@
 from torchvision import transforms
 from torchvision.transforms import v2
-
+import torch
 def get_augmentation(augmentations_test_number):
 
     augmentations = False #to check the input param
@@ -11,16 +11,19 @@ def get_augmentation(augmentations_test_number):
     elif augmentations_test_number == "1":
         
         augmentations = transforms.Compose([
-            v2.GaussianBlur(kernel_size=(3,3))
+            v2.GaussianBlur(kernel_size=(4,4))
         ])
 
     elif augmentations_test_number == "2": #0.3980821988
         augmentations = transforms.Compose([
-            transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=None, shear=None)])
+            transforms.RandomAffine(degrees=0, translate=(0.05, 0.05), scale=None, shear=None)])
     
     elif augmentations_test_number == "3": #0.4008300987
         augmentations = transforms.Compose([
-            transforms.RandomResizedCrop(size=(224,224))])
+            transforms.RandomResizedCrop(size=(224,224),
+                                         scale=(0.9, 1.0),  #era scale=(0.08, 1.0),
+                                         ratio=(0.75, 1)  #era 0.75 e 1.3333
+                                         )])
     
     elif augmentations_test_number ==  "4":
         augmentations = transforms.Compose([
@@ -51,9 +54,13 @@ def get_augmentation(augmentations_test_number):
     elif augmentations_test_number == "9":
         
         augmentations = transforms.Compose([
-            v2.RandomCrop(size=(220,220)),
-            v2.Resize(size=(224,224))
+            v2.RandomErasing(p=0.85, scale=(0.02, 0.33), ratio=(0.3, 3.3), value='random', inplace=False)
         ])
+
+        # augmentations = transforms.Compose([
+        #     v2.RandomCrop(size=(220,220)),
+        #     v2.Resize(size=(224,224))
+        # ])
 
         
 
